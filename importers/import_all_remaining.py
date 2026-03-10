@@ -157,7 +157,9 @@ def main():
                 inserted = 0
                 for seq, item in enumerate(data, start=1):
                     body = item.get("text", "").strip()
-                    heading = item.get("article_title") or item.get("section_title") or item.get("id")
+                    if not body and (item.get("question") or item.get("answer")):
+                        body = ((item.get("question") or "").strip() + "\n\n" + (item.get("answer") or "").strip()).strip()
+                    heading = item.get("article_title") or item.get("section_title") or item.get("question") or item.get("id")
                     meta = {
                         "layer": item.get("layer"),
                         "document": item.get("document"),
