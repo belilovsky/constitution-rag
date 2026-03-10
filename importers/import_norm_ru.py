@@ -6,13 +6,13 @@ from psycopg2.extras import Json
 
 DB = {
     "host": "127.0.0.1",
-    "port": 5432,
+    "port": 55432,
     "dbname": "constitution_rag",
     "user": "constitution_rag",
     "password": "ConstitutionRag_2026_Strong_Pass_Change_This",
 }
 
-JSON_PATH = Path("/work/normalized/norm_ru_chunks.json")
+JSON_PATH = Path("/root/constitution-rag/normalized/norm_ru_chunks.json")
 
 DOC = {
     "source_type": "normative",
