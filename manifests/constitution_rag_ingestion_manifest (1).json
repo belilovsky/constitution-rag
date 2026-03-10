@@ -1,0 +1,143 @@
+{
+  "project": "constitution-rag",
+  "version": "2.0",
+  "created": "2026-03-10",
+  "description": "Ingestion manifest for constitutional chatbot RAG pipeline",
+  "phases": [
+    {
+      "phase": "1a",
+      "name": "norm_ru",
+      "script": "—",
+      "input": "KRK-12.02.26-rus.docx",
+      "output": "norm_ru_chunks.json",
+      "layer": "norm",
+      "language": "ru",
+      "expected_chunks": 97,
+      "status": "done",
+      "notes": "Pre-built JSON, dashes normalized"
+    },
+    {
+      "phase": "1b",
+      "name": "norm_kz",
+      "script": "norm_kz_extract.py",
+      "input": "KRK-12.02.26-kaz.docx",
+      "output": "norm_kz_chunks.json",
+      "layer": "norm",
+      "language": "kz",
+      "expected_chunks": 97,
+      "status": "ready"
+    },
+    {
+      "phase": "2a",
+      "name": "commentary_ru",
+      "script": "commentary_ru_extract.py",
+      "input": "26_02_14-RUS_Metodichka-Konstituciya_A5_unlocked.pdf",
+      "input_note": "Check real filename on VPS with: ls *Metodichka*RUS*",
+      "output": "commentary_ru_chunks.json",
+      "layer": "commentary",
+      "language": "ru",
+      "expected_chunks": "~98",
+      "status": "ready"
+    },
+    {
+      "phase": "2b",
+      "name": "commentary_kz",
+      "script": "commentary_kz_extract.py",
+      "input": "26_02_14-QAZ_Metodichka-Konstituciya_A5_unlocked.pdf",
+      "input_note": "Check real filename on VPS with: ls *Metodichka*QAZ*",
+      "output": "commentary_kz_chunks.json",
+      "layer": "commentary",
+      "language": "kz",
+      "expected_chunks": "~98",
+      "status": "ready"
+    },
+    {
+      "phase": "3a",
+      "name": "faq_kz",
+      "script": "faq_kz_extract.py",
+      "input": "26_02_14-QAZ_Ozekti-suraktar-men-zhauaptar_A5_unlocked.pdf",
+      "input_note": "Check real filename on VPS with: ls *QAZ*suraktar*",
+      "output": "faq_kz_chunks.json",
+      "layer": "faq",
+      "language": "kz",
+      "expected_chunks": 15,
+      "status": "ready"
+    },
+    {
+      "phase": "3b",
+      "name": "faq_ru",
+      "script": "faq_ru_extract.py",
+      "input": "26_02_14-RUS_Aktualnye-voprosy-i-otvety_A5_unlocked.pdf",
+      "input_note": "Check real filename on VPS with: ls *RUS*voprosy*",
+      "output": "faq_ru_chunks.json",
+      "layer": "faq",
+      "language": "ru",
+      "expected_chunks": 15,
+      "status": "ready"
+    },
+    {
+      "phase": "4a",
+      "name": "deprecated_kz",
+      "script": "deprecated_kz_extract.py",
+      "input": "1995-kaz.pdf",
+      "input_note": "Check real filename on VPS with: ls *1995*kaz*",
+      "output": "deprecated_kz_chunks.json",
+      "layer": "norm",
+      "language": "kz",
+      "expected_chunks": "~100",
+      "status": "ready",
+      "all_chunks_deprecated": true
+    },
+    {
+      "phase": "4b",
+      "name": "deprecated_ru",
+      "script": "deprecated_ru_extract.py",
+      "input": "1995-rus.pdf",
+      "input_note": "Check real filename on VPS with: ls *1995*rus*",
+      "output": "deprecated_ru_chunks.json",
+      "layer": "norm",
+      "language": "ru",
+      "expected_chunks": "~100",
+      "status": "ready",
+      "all_chunks_deprecated": true
+    }
+  ],
+  "total_expected_chunks": "~620",
+  "risks": [
+    {
+      "id": "R1",
+      "severity": "CRITICAL",
+      "description": "Without 'deprecated' status, bot will cite 1995 Constitution as current law",
+      "mitigation": "Every deprecated chunk has status=deprecated, deprecated_date, deprecation_note"
+    },
+    {
+      "id": "R2",
+      "severity": "HIGH",
+      "description": "PDF filenames on VPS may differ from sanitized names in scripts",
+      "mitigation": "Run: ls *.pdf *.docx on VPS and update INPUT vars in scripts before running"
+    },
+    {
+      "id": "R3",
+      "severity": "MEDIUM",
+      "description": "PDF parsing may include page headers/footers as noise",
+      "mitigation": "Post-extraction QA: spot-check 5 random chunks per file for clean text"
+    },
+    {
+      "id": "R4",
+      "severity": "MEDIUM",
+      "description": "Document marked as ПРОЕКТ, referendum 15.03.2026",
+      "mitigation": "After referendum, update effective_date if needed"
+    }
+  ],
+  "dependencies": [
+    "pdfplumber",
+    "python-docx"
+  ],
+  "post_extraction_qa": [
+    "Verify chunk count per file matches expected",
+    "Spot-check 5 random articles per language for text accuracy",
+    "Verify no article numbers are missing (sequential check)",
+    "Confirm all deprecated chunks have status=deprecated",
+    "Check for PDF artifacts in text (page numbers, headers)"
+  ]
+}
