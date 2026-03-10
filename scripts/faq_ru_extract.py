@@ -6,7 +6,7 @@ try:
 except ImportError:
     sys.exit("pip install pdfplumber")
 
-INPUT  = "26_02_14-RUS_Aktualnye-voprosy-i-otvety_A5_unlocked.pdf"
+INPUT  = "raw/faq/26_02_14=RUS_Актуальные вопросы и ответы_А5_unlocked.pdf"
 OUTPUT = "faq_ru_chunks.json"
 
 with pdfplumber.open(INPUT) as pdf:

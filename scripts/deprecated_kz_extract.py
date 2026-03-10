@@ -6,7 +6,7 @@ try:
 except ImportError:
     sys.exit("pip install pdfplumber")
 
-INPUT  = "1995-kaz.pdf"
+INPUT  = "raw/deprecated/1995 қаз.pdf"
 OUTPUT = "deprecated_kz_chunks.json"
 
 with pdfplumber.open(INPUT) as pdf:

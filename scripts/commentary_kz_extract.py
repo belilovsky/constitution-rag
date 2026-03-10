@@ -6,7 +6,7 @@ try:
 except ImportError:
     sys.exit("pip install pdfplumber")
 
-INPUT  = "26_02_14-QAZ_Metodichka-Konstituciya_A5_unlocked.pdf"
+INPUT  = "raw/commentary/260218=Методичка финал каз.версия+.pdf"
 OUTPUT = "commentary_kz_chunks.json"
 
 with pdfplumber.open(INPUT) as pdf:
