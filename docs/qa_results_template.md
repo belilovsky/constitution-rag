@@ -6,8 +6,8 @@
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md`
 - `README.md`
-- `system_prompt_canonical_v1-6.md`
-- `retrieval_policy_v1-4.md`
+- `system_prompt_canonical_v1.md`
+- `retrieval_policy_v1.md`
 - `red_team_hostile_25.md`
 
 Использовать этот шаблон нужно после каждого значимого прогона:
@@ -52,8 +52,8 @@
 - `environment`: `staging`
 - `service / endpoint`: `constitution-rag chatbot staging endpoint`
 - `bot build / branch / commit`: `answer-layer / abc1234`
-- `prompt version`: `system_prompt_canonical_v1-6`
-- `retrieval policy version`: `retrieval_policy_v1-4`
+- `prompt version`: `system_prompt_canonical_v1`
+- `retrieval policy version`: `retrieval_policy_v1`
 - `test pack version`: `red_team_hostile_25`
 - `dataset snapshot`: `8 datasets loaded, empty_body=0 verified`
 - `retrieval build / commit`: `56ea43a`
@@ -417,8 +417,6 @@
 
 Примеры:
 
-- обновить `system_prompt_canonical_v1-6` → `v1-7`
-- обновить `retrieval_policy_v1-4` → `v1-5`
 - повторить top-10 critical run
 - перейти к full hostile run
 - перейти к KZ mirror testing

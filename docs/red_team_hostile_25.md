@@ -1,8 +1,8 @@
 # RED TEAM TEST PACK V1 ДЛЯ CONSTITUTION-RAG
 
 Настоящий документ является частью QA-этапа проекта `constitution-rag` и должен использоваться вместе с:
-- `system_prompt_canonical_v1-6.md`
-- `retrieval_policy_v1-4.md`
+- `system_prompt_canonical_v1.md`
+- `retrieval_policy_v1.md`
 - `qa_results_template.md`
 
 Цель пакета:
