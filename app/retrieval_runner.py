@@ -24,6 +24,16 @@ def normalize_query(query: str) -> str:
         "правительством": "правительство",
         "судами": "суд",
         "суда": "суд",
+        "судах": "суд",
+        "цензуры": "цензура",
+        "цензурой": "цензура",
+        "свободы слова": "свобода слова",
+        "свободу слова": "свобода слова",
+        "информацию": "информация",
+        "изменилось": "изменения",
+        "изменения": "изменения",
+        "новеллы": "изменения",
+        "новое": "изменения",
     }
 
     for src, dst in replacements.items():
@@ -37,11 +47,17 @@ def detect_section_hint(query: str):
 
     if "президент" in q:
         return "Президент"
-    if "правительство" in q:
+    if "правительство" in q or "премьер-министр" in q or "премьер министр" in q:
         return "Правительство"
-    if "суд" in q or "правосуд" in q:
+    if "суд" in q or "правосуд" in q or "судья" in q:
         return "Правосудие"
-    if "право" in q or "свобод" in q:
+    if (
+        "право" in q
+        or "свобод" in q
+        or "цензура" in q
+        or "свобода слова" in q
+        or "информация" in q
+    ):
         return "Основные права, свободы и обязанности"
     return None
 
@@ -55,6 +71,8 @@ def classify_query(query: str) -> str:
         return "comparison"
     if any(x in q for x in ["сравни", "сравнение"]):
         return "comparison"
+    if any(x in q for x in ["что изменилось", "изменения", "новая конституция", "новеллы"]):
+        return "explanation"
     if any(x in q for x in ["простыми словами", "объясни проще", "объясни простыми словами", "faq"]):
         return "explanation"
     return "ordinary"
@@ -114,6 +132,9 @@ def retrieve_historical_priority(query: str, doc_key: str, limit: int = 5):
     if section_hint == "Президент":
         return retrieve_historical_range(doc_key, 40, 48, limit)
 
+    if section_hint == "Правительство":
+        return retrieve_historical_range(doc_key, 64, 70, limit)
+
     return []
 
 
@@ -149,6 +170,52 @@ def retrieve_section_priority(query: str, doc_key: str, limit: int = 5):
     """
     like = f"%{section_hint}%"
     return fetch_all(sql, (like, like, like, doc_key, like, like, like, limit))
+
+
+def retrieve_keyword_priority(query: str, doc_key: str, limit: int = 5):
+    q = normalize_query(query)
+
+    keyword_groups = []
+
+    if "цензура" in q or "свобода слова" in q or "информация" in q:
+        keyword_groups.append(["цензура", "свобода слова", "информация"])
+
+    if "изменения" in q and "конституция" in q:
+        keyword_groups.append(["изменения", "референдум", "вступает в силу"])
+
+    if not keyword_groups:
+        return []
+
+    conditions = []
+    params = [doc_key]
+    score_parts = []
+
+    for group in keyword_groups:
+        for kw in group:
+            like = f"%{kw}%"
+            conditions.append("c.body ilike %s")
+            params.append(like)
+            score_parts.append(f"case when c.body ilike %s then 1 else 0 end")
+            params.append(like)
+
+    sql = f"""
+    select
+      d.doc_key,
+      d.status,
+      c.chunk_index,
+      c.heading,
+      c.meta,
+      c.body,
+      ({' + '.join(score_parts)}) as keyword_score
+    from document_chunks c
+    join documents d on d.id = c.document_id
+    where d.doc_key = %s
+      and ({' or '.join(conditions)})
+    order by keyword_score desc, c.chunk_index
+    limit %s
+    """
+    params.append(limit)
+    return fetch_all(sql, tuple(params))
 
 
 def retrieve_fts(query: str, doc_key: str, limit: int = 5):
@@ -196,9 +263,18 @@ def retrieve_trgm(query: str, doc_key: str, limit: int = 5):
 
 
 def retrieve_ordinary(query: str):
+    q = normalize_query(query)
+
+    if any(x in q for x in ["изменения", "новая конституция"]):
+        return retrieve_explanation(query)
+
     section_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=5)
     if section_rows:
         return section_rows
+
+    keyword_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
+    if keyword_rows:
+        return keyword_rows
 
     rows = retrieve_fts(query, DOCS["norm_ru"], limit=5)
     if rows:
@@ -208,13 +284,17 @@ def retrieve_ordinary(query: str):
 
 
 def retrieve_explanation(query: str):
-    norm_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
+    norm_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=3)
+    if not norm_rows:
+        norm_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
     if not norm_rows:
         norm_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
     if not norm_rows:
         norm_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
 
-    commentary_rows = retrieve_section_priority(query, DOCS["commentary_ru"], limit=2)
+    commentary_rows = retrieve_keyword_priority(query, DOCS["commentary_ru"], limit=2)
+    if not commentary_rows:
+        commentary_rows = retrieve_section_priority(query, DOCS["commentary_ru"], limit=2)
     if not commentary_rows:
         commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=2)
     if not commentary_rows:
@@ -231,7 +311,9 @@ def retrieve_explanation(query: str):
 
 
 def retrieve_comparison(query: str):
-    current_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
+    current_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=5)
+    if not current_rows:
+        current_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
     if not current_rows:
         current_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
     if not current_rows:
@@ -239,12 +321,14 @@ def retrieve_comparison(query: str):
 
     historical_rows = retrieve_historical_priority(query, DOCS["deprecated_ru"], limit=3)
     if not historical_rows:
+        historical_rows = retrieve_keyword_priority(query, DOCS["deprecated_ru"], limit=3)
+    if not historical_rows:
         historical_rows = retrieve_fts(query, DOCS["deprecated_ru"], limit=3)
     if not historical_rows:
         historical_rows = retrieve_trgm(query, DOCS["deprecated_ru"], limit=3)
 
     return {
-        "2026": current_rows,
+        "2026": current_rows[:3],
         "1995": historical_rows,
     }
 
