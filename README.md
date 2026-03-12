@@ -287,6 +287,67 @@ Workaround:
 Если хотя бы один из этих blocker’ов открыт, release status = `NO-GO`.
 
 ---
+---
+
+## Comparative QA pack prepared on 2026-03-13
+
+Для comparative top-10 critical run подготовлен отдельный operational пакет артефактов:
+
+- `QUESTION_SET_top10_v1.md`
+- `SCORING_RULES_top10_v1.md`
+- `qa_top10_S1_colleagues_baseline_2026-03-13.md`
+- `qa_top10_S2_colleagues_plus_our_changes_2026-03-13.md`
+- `qa_top10_S3_our_version_2026-03-13.md`
+- `qa_top10_S4_standard_ai_reference_2026-03-13.md`
+- `comparative_matrix_top10_2026-03-13.md`
+- `decision_memo_top10_2026-03-13.md`
+
+Назначение пакета:
+- прогнать единый frozen top-10 question set по 4 системам;
+- фиксировать answer snapshot и retrieval snapshot;
+- оценивать ответы по единой rubric;
+- сравнивать системы не по впечатлению, а по blocker-aware evidence;
+- выбрать не просто “winner”, а `preferred fix target`, если у всех систем останутся P0 blocker’ы.
+
+Важно:
+- один открытый P0 blocker сильнее, чем высокий average score;
+- comparative run не заменяет retest;
+- release status остаётся `NO-GO`, пока не закрыты blocker’ы текущего этапа.
+
+---
+
+## Current operational focus
+
+Текущий operational фокус проекта:
+
+1. Работать с VPS через нормальный локальный SSH, а не через browser terminal.
+2. Снять inventory runtime-части repo и текущего chatbot-контура.
+3. Подтвердить минимальный runtime path:
+   `user question -> retrieval -> prompt assembly -> LLM -> answer`.
+4. После этого выполнить top-10 comparative QA run.
+5. Зафиксировать blocker register, fix plan и retest.
+6. Только затем переходить к full hostile run или к расширению knowledge base.
+
+---
+
+## Fresh-dialog handoff
+
+Если работа переносится в новый диалог этого Space, стартовая точка должна быть такой:
+
+1. Подтвердить SSH-доступ к VPS из локального терминала.
+2. Показать фактический inventory runtime-части repo:
+   - `git status`
+   - `find . -maxdepth 3 -type f | sort`
+   - `find . -maxdepth 3 -type d | sort`
+   - `find . -maxdepth 4 | grep -E 'app|api|server|main|chat|retrieval|prompt|docker|compose'`
+3. Подтвердить, где именно находится chatbot runtime entrypoint.
+4. Только после этого решать:
+   - чего не хватает для минимального интерфейса;
+   - как подключается LLM;
+   - как прогонять top-10 и сохранять QA evidence.
+
+Этот handoff нужен, чтобы не возвращаться к общим рассуждениям и сразу продолжить operational work по текущему release gate.
+
 
 ## Boundary rule
 
