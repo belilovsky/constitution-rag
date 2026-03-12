@@ -88,6 +88,35 @@ def retrieve_exact_article(article_number: int, doc_key: str = DOCS["norm_ru"], 
     return fetch_all(sql, (doc_key, str(article_number), f"Статья {article_number}%", limit))
 
 
+def retrieve_historical_range(doc_key: str, article_from: int, article_to: int, limit: int = 5):
+    sql = """
+    select
+      d.doc_key,
+      d.status,
+      c.chunk_index,
+      c.heading,
+      c.meta,
+      c.body
+    from document_chunks c
+    join documents d on d.id = c.document_id
+    where d.doc_key = %s
+      and (c.meta->>'article_number') ~ '^[0-9]+$'
+      and ((c.meta->>'article_number')::int between %s and %s)
+    order by c.chunk_index
+    limit %s
+    """
+    return fetch_all(sql, (doc_key, article_from, article_to, limit))
+
+
+def retrieve_historical_priority(query: str, doc_key: str, limit: int = 5):
+    section_hint = detect_section_hint(query)
+
+    if section_hint == "Президент":
+        return retrieve_historical_range(doc_key, 40, 48, limit)
+
+    return []
+
+
 def retrieve_section_priority(query: str, doc_key: str, limit: int = 5):
     section_hint = detect_section_hint(query)
     if not section_hint:
@@ -208,7 +237,7 @@ def retrieve_comparison(query: str):
     if not current_rows:
         current_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
 
-    historical_rows = retrieve_section_priority(query, DOCS["deprecated_ru"], limit=3)
+    historical_rows = retrieve_historical_priority(query, DOCS["deprecated_ru"], limit=3)
     if not historical_rows:
         historical_rows = retrieve_fts(query, DOCS["deprecated_ru"], limit=3)
     if not historical_rows:
@@ -225,10 +254,9 @@ def run_retrieval(query: str):
 
     if mode == "exact":
         article_number = extract_article_number(query)
-        rows = retrieve_exact_article(article_number) if article_number is not None else []
-        if not rows:
-            rows = retrieve_ordinary(query)
-        return {"mode": mode, "results": rows}
+        if article_number is None:
+            return {"mode": mode, "results": []}
+        return {"mode": mode, "results": retrieve_exact_article(article_number)}
 
     if mode == "comparison":
         return {"mode": mode, "results": retrieve_comparison(query)}
