@@ -186,8 +186,8 @@ Source of truth для текущего chatbot-layer:
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md`
 - `README.md`
-- `system_prompt_canonical_v1-6.md`
-- `retrieval_policy_v1-4.md`
+- `system_prompt_canonical_v1.md`
+- `retrieval_policy_v1.md`
 - `red_team_hostile_25.md`
 - `qa_results_template.md`
 
@@ -195,8 +195,8 @@ Source of truth для текущего chatbot-layer:
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md` — текущая стадия, release gate, known issues, next actions;
 - `README.md` — общий вход в проект и project memory верхнего уровня;
-- `system_prompt_canonical_v1-6.md` — канонические правила answer behavior;
-- `retrieval_policy_v1-4.md` — канонические правила retrieval routing и source-priority;
+- `system_prompt_canonical_v1.md` — канонические правила answer behavior;
+- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
 - `red_team_hostile_25.md` — тестовый пакет и rubric;
 - `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
 
