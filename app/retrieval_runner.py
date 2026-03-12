@@ -9,7 +9,6 @@ DOCS = {
     "deprecated_ru": "krk_1995_deprecated_ru",
 }
 
-
 SAFE_FAILURE_PATTERNS = [
     "нейросет",
     "нейросети",
@@ -100,36 +99,54 @@ ARTICLE_PATTERNS = [
 
 def normalize_query(query: str) -> str:
     q = query.lower().strip()
+    q = q.replace("ё", "е")
 
     replacements = {
         "президента": "президент",
         "президенту": "президент",
         "президентом": "президент",
         "президенты": "президент",
+
         "полномочий": "полномочия",
         "полномочиями": "полномочия",
+
         "правительства": "правительство",
         "правительством": "правительство",
         "правительстве": "правительство",
         "правительству": "правительство",
+
         "судами": "суд",
         "суда": "суд",
         "судах": "суд",
         "судья": "суд",
         "судьи": "суд",
+
         "цензуры": "цензура",
         "цензурой": "цензура",
+
         "свободы слова": "свобода слова",
         "свободу слова": "свобода слова",
+        "свободе слова": "свобода слова",
+        "о свободе слова": "свобода слова",
+        "к свободе слова": "свобода слова",
+
         "мирных собраний": "мирные собрания",
+        "мирными собраниями": "мирные собрания",
+        "мирным собраниям": "мирные собрания",
         "мирные собрания": "мирные собрания",
+        "праве на мирные собрания": "мирные собрания",
+        "о праве на мирные собрания": "мирные собрания",
+
         "собраний": "собрания",
+
         "информацию": "информация",
         "информации": "информация",
+
         "изменилось": "изменения",
         "изменения": "изменения",
         "новеллы": "изменения",
         "новое": "изменения",
+
         "действующая конституция 1995 года": "1995 конституция",
         "конституция 1995 года": "1995 конституция",
     }
@@ -137,6 +154,7 @@ def normalize_query(query: str) -> str:
     for src, dst in replacements.items():
         q = q.replace(src, dst)
 
+    q = re.sub(r"[«»\"“”„(),.:;!?]", " ", q)
     q = re.sub(r"\s+", " ", q).strip()
     return q
 
@@ -182,7 +200,16 @@ def is_probably_weak_query(query: str) -> bool:
 def is_broad_query(query: str) -> bool:
     q = normalize_query(query)
     return any(x in q for x in BROAD_MARKERS) and any(
-        x in q for x in ["прав", "свобод", "полномоч", "стать", "положени", "президент", "собрани", "свобода слова"]
+        x in q for x in [
+            "прав",
+            "свобод",
+            "полномоч",
+            "стать",
+            "положени",
+            "президент",
+            "собрани",
+            "свобода слова",
+        ]
     )
 
 
@@ -217,7 +244,11 @@ def canonical_topics(query: str) -> set[str]:
     if "курултай" in q:
         topics.add("курултай")
 
-    if "свобода слова" in q or "цензура" in q or "информация" in q:
+    if (
+        "свобода слова" in q
+        or "цензура" in q
+        or "информация" in q
+    ):
         topics.add("свобода_слова")
 
     if "мирные собрания" in q or "собрания" in q:
@@ -286,7 +317,12 @@ def detect_section_hint(query: str):
         return "Правительство"
     if "правосудие" in topics:
         return "Правосудие"
-    if "права" in topics or "политические_права" in topics or "свобода_слова" in topics or "мирные_собрания" in topics:
+    if (
+        "права" in topics
+        or "политические_права" in topics
+        or "свобода_слова" in topics
+        or "мирные_собрания" in topics
+    ):
         return "Основные права, свободы и обязанности"
 
     return None
@@ -295,12 +331,12 @@ def detect_section_hint(query: str):
 def retrieve_exact_article(article_number: int, doc_key: str = DOCS["norm_ru"], limit: int = 5):
     sql = """
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -317,12 +353,12 @@ def retrieve_exact_article(article_number: int, doc_key: str = DOCS["norm_ru"], 
 def retrieve_exact_point(article_number: int, point_number: int, doc_key: str = DOCS["norm_ru"], limit: int = 5):
     sql = """
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -340,12 +376,12 @@ def retrieve_exact_point(article_number: int, point_number: int, doc_key: str = 
 def retrieve_article_range(doc_key: str, article_from: int, article_to: int, limit: int = 10):
     sql = """
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -365,18 +401,18 @@ def retrieve_section_priority(query: str, doc_key: str, limit: int = 5):
     like = f"%{section_hint}%"
     sql = """
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body,
-      case
-        when coalesce(c.meta->>'section_title', '') ilike %s then 3
-        when coalesce(c.heading, '') ilike %s then 2
-        when c.body ilike %s then 1
-        else 0
-      end as priority_score
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body,
+        case
+            when coalesce(c.meta->>'section_title', '') ilike %s then 3
+            when coalesce(c.heading, '') ilike %s then 2
+            when c.body ilike %s then 1
+            else 0
+        end as priority_score
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -444,13 +480,13 @@ def retrieve_keyword_priority(query: str, doc_key: str, limit: int = 5):
 
     sql = f"""
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body,
-      ({' + '.join(score_parts)}) as keyword_score
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body,
+        ({' + '.join(score_parts)}) as keyword_score
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -467,13 +503,13 @@ def retrieve_fts(query: str, doc_key: str, limit: int = 5):
     q = normalize_query(query)
     sql = """
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body,
-      ts_rank(c.body_tsv, plainto_tsquery('simple', %s)) as rank
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body,
+        ts_rank(c.body_tsv, plainto_tsquery('simple', %s)) as rank
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -488,16 +524,16 @@ def retrieve_trgm(query: str, doc_key: str, limit: int = 5):
     q = normalize_query(query)
     sql = """
     select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body,
-      greatest(
-        similarity(coalesce(c.heading, ''), %s),
-        similarity(c.body, %s)
-      ) as sim
+        d.doc_key,
+        d.status,
+        c.chunk_index,
+        c.heading,
+        c.meta,
+        c.body,
+        greatest(
+            similarity(coalesce(c.heading, ''), %s),
+            similarity(c.body, %s)
+        ) as sim
     from document_chunks c
     join documents d on d.id = c.document_id
     where d.doc_key = %s
@@ -562,6 +598,10 @@ def retrieve_broad(query: str):
     q = normalize_query(query)
     topics = canonical_topics(q)
 
+    topic_rows = retrieve_topic_shortcut_2026(q)
+    if topic_rows:
+        return topic_rows
+
     if "политические_права" in topics:
         rows = retrieve_political_rights_overview()
         if rows:
@@ -577,19 +617,15 @@ def retrieve_broad(query: str):
     if "правительство" in topics:
         return retrieve_article_range(DOCS["norm_ru"], 63, 69, limit=8)
 
-    topic_rows = retrieve_topic_shortcut_2026(query)
-    if topic_rows:
-        return topic_rows
-
-    keyword_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=8)
+    keyword_rows = retrieve_keyword_priority(q, DOCS["norm_ru"], limit=8)
     if keyword_rows:
         return keyword_rows
 
-    section_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=8)
+    section_rows = retrieve_section_priority(q, DOCS["norm_ru"], limit=8)
     if section_rows:
         return section_rows
 
-    rows = retrieve_fts(query, DOCS["norm_ru"], limit=8)
+    rows = retrieve_fts(q, DOCS["norm_ru"], limit=8)
     if rows:
         return rows
 
