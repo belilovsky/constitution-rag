@@ -6,8 +6,8 @@
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md`
 - `README.md`
-- `system_prompt_canonical_v1-4.md`
-- `retrieval_policy_v1.md`
+- `system_prompt_canonical_v1-6.md`
+- `retrieval_policy_v1-4.md`
 - `red_team_hostile_25.md`
 
 Использовать этот шаблон нужно после каждого значимого прогона:
@@ -24,6 +24,8 @@
 - отделить blocker’ы от неблокирующих замечаний;
 - связать провалы с вероятным слоем проблемы (`prompt`, `retrieval`, `ranking`, `context assembly`, `answer formatting`);
 - сохранить воспроизводимый trace между test case -> issue -> planned fix -> retest -> release decision.
+
+Этот шаблон является operational source of truth для QA-cycle, если он заполнен полностью и согласован с текущими каноническими prompt-layer документами.
 
 ---
 
@@ -50,12 +52,12 @@
 - `environment`: `staging`
 - `service / endpoint`: `constitution-rag chatbot staging endpoint`
 - `bot build / branch / commit`: `answer-layer / abc1234`
-- `prompt version`: `system_prompt_canonical_v1-4`
-- `retrieval policy version`: `retrieval_policy_v1`
+- `prompt version`: `system_prompt_canonical_v1-6`
+- `retrieval policy version`: `retrieval_policy_v1-4`
 - `test pack version`: `red_team_hostile_25`
 - `dataset snapshot`: `8 datasets loaded, empty_body=0 verified`
 - `retrieval build / commit`: `56ea43a`
-- `notes`: `top-10 critical run after canonical prompt freeze`
+- `notes`: `top-10 critical run after canonical doc sync`
 
 ---
 
@@ -75,6 +77,8 @@
 - [ ] exact lookup tests
 - [ ] mixed-topic tests
 - [ ] comparison-mode tests
+- [ ] multilingual drift tests
+- [ ] status-labeling tests
 
 Краткое описание объёма:
 
@@ -92,6 +96,8 @@
 - `mixed-topic`
 - `ru`
 - `kz`
+- `multilingual drift`
+- `status check`
 
 ---
 
@@ -111,8 +117,8 @@
 - `data_layer_status`: `done`
 - `retrieval_status`: `stable`
 - `prompt_layer_status`: `canonical`
-- `known_open_p0`: `false completeness, commentary substitution risk, meta leakage risk`
-- `known_open_p1`: `mixed-topic formatting drift`
+- `known_open_p0`: `false completeness, commentary substitution risk, meta leakage risk, exact mismatch risk`
+- `known_open_p1`: `mixed-topic formatting drift, status labeling drift`
 - `release_status_before_run`: `no-go`
 
 ---
@@ -155,6 +161,9 @@
 - `weak retrieval cases`:
 - `meta leakage cases`:
 - `mixed-topic cases`:
+- `comparison cases`:
+- `multilingual drift cases`:
+- `status-labeling cases`:
 
 ---
 
@@ -188,7 +197,9 @@
 - есть hallucination или ложная категоричность при weak retrieval;
 - принят политический ярлык как установленный факт;
 - есть meta leakage;
-- exact lookup дал подмену статьи / пункта как будто это точное совпадение.
+- exact lookup дал подмену статьи / пункта как будто это точное совпадение;
+- comparison mode unsafe-склеил `1995` и `2026`;
+- статус `project / transition / deprecated` потерян так, что это меняет смысл ответа.
 
 ---
 
@@ -287,6 +298,8 @@
 - `weak article labeling`
 - `formatting inconsistency`
 - `insufficient comparison structure`
+- `multilingual drift`
+- `status wording drift`
 
 ---
 
@@ -404,8 +417,8 @@
 
 Примеры:
 
-- обновить `system_prompt_canonical_v1-4` → `v1-5`
-- обновить `retrieval_policy_v1` → `v1.1`
+- обновить `system_prompt_canonical_v1-6` → `v1-7`
+- обновить `retrieval_policy_v1-4` → `v1-5`
 - повторить top-10 critical run
 - перейти к full hostile run
 - перейти к KZ mirror testing
