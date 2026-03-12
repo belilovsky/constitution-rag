@@ -90,8 +90,8 @@ Source of truth для prompt / retrieval / answer слоя на текущем 
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md`
 - `README.md`
-- `system_prompt_canonical_v1-4.md`
-- `retrieval_policy_v1.md`
+- `system_prompt_canonical_v1-6.md`
+- `retrieval_policy_v1-4.md`
 - `red_team_hostile_25.md`
 - `qa_results_template.md`
 
@@ -101,8 +101,8 @@ Source of truth для prompt / retrieval / answer слоя на текущем 
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md` — текущий этап, release gate, known issues, next actions;
 - `README.md` — входной документ по проекту и общая project memory;
-- `system_prompt_canonical_v1-4.md` — канонические правила answer behavior;
-- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
+- `system_prompt_canonical_v1-6.md` — канонические правила answer behavior;
+- `retrieval_policy_v1-4.md` — канонические правила retrieval routing и source-priority;
 - `red_team_hostile_25.md` — тестовый пакет и rubric для answer-layer QA;
 - `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
 
@@ -250,7 +250,6 @@ P0 blocker’ы текущего этапа:
 10. только после этого допуск в рабочий chatbot-контур.
 
 Критические правила:
-
 - новые материалы не должны загрязнить `norm`-слой;
 - internal / штабные / operational материалы не должны попасть в ordinary user retrieval без отдельного явного решения;
 - commentary-ready документы не должны автоматически повышаться до norm-layer;
@@ -264,14 +263,15 @@ P0 blocker’ы текущего этапа:
 
 1. зафиксировать этот статус-файл в repo;
 2. обновить `README.md` в соответствии с текущим состоянием проекта;
-3. синхронизировать `qa_results_template.md` с текущими каноническими документами;
-4. прогнать top-10 critical cases из `red_team_hostile_25.md`;
-5. сохранить QA-лог по каждому прогону через `qa_results_template.md`;
-6. зафиксировать blocker register и fix plan;
-7. исправить answer-layer / prompt behavior по найденным провалам;
-8. сделать retest;
-9. только после этого переходить к full 30-case run;
-10. только после закрытия P0 возвращаться к решению по импорту новых документов.
+3. синхронизировать канонические документы между собой: `system_prompt_canonical_v1-6.md`, `retrieval_policy_v1-4.md`, `red_team_hostile_25.md`, `qa_results_template.md`;
+4. сделать один doc-sync commit;
+5. прогнать top-10 critical cases из `red_team_hostile_25.md`;
+6. сохранить QA-лог по каждому прогону через `qa_results_template.md`;
+7. зафиксировать blocker register и fix plan;
+8. исправить answer-layer / prompt behavior по найденным провалам;
+9. сделать retest;
+10. только после этого переходить к full 30-case run;
+11. только после закрытия P0 возвращаться к решению по импорту новых документов.
 
 ---
 
