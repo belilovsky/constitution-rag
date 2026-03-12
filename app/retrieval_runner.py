@@ -336,10 +336,10 @@ def retrieve_comparison(query: str):
     q = normalize_query(query)
 
     if "правительство" in q:
-    return {
-        "2026": retrieve_article_range(DOCS["norm_ru"], 63, 69, limit=3),
-        "1995": retrieve_article_range(DOCS["deprecated_ru"], 64, 70, limit=3),
-    }
+        return {
+            "2026": retrieve_article_range(DOCS["norm_ru"], 63, 69, limit=3),
+            "1995": retrieve_article_range(DOCS["deprecated_ru"], 64, 70, limit=3),
+        }
 
     current_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
     if not current_rows:
@@ -360,6 +360,7 @@ def retrieve_comparison(query: str):
         "2026": current_rows,
         "1995": historical_rows,
     }
+
 
 
 
