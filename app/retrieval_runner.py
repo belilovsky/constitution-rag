@@ -36,7 +36,6 @@ def normalize_query(query: str) -> str:
         "информации": "информация",
         "изменилось": "изменения",
         "изменения": "изменения",
-        "изменилось?": "изменения",
         "новеллы": "изменения",
         "новое": "изменения",
     }
@@ -52,13 +51,10 @@ def detect_section_hint(query: str):
 
     if "президент" in q:
         return "Президент"
-
     if "правительство" in q or "премьер-министр" in q or "премьер министр" in q:
         return "Правительство"
-
     if "суд" in q or "правосуд" in q:
         return "Правосудие"
-
     if (
         "право" in q
         or "свобод" in q
@@ -67,7 +63,6 @@ def detect_section_hint(query: str):
         or "информация" in q
     ):
         return "Основные права, свободы и обязанности"
-
     return None
 
 
@@ -76,19 +71,14 @@ def classify_query(query: str) -> str:
 
     if re.search(r"\bстат\w*\s*\d+\b", q) or re.search(r"\bст\.\s*\d+\b", q):
         return "exact"
-
     if "1995" in q and "2026" in q:
         return "comparison"
-
     if any(x in q for x in ["сравни", "сравнение", "было и стало", "чем отличается"]):
         return "comparison"
-
     if any(x in q for x in ["что изменилось", "изменения", "новая конституция", "новеллы"]):
         return "explanation"
-
     if any(x in q for x in ["простыми словами", "объясни проще", "объясни простыми словами", "faq"]):
         return "explanation"
-
     return "ordinary"
 
 
@@ -140,36 +130,6 @@ def retrieve_article_range(doc_key: str, article_from: int, article_to: int, lim
     return fetch_all(sql, (doc_key, article_from, article_to, limit))
 
 
-def retrieve_historical_priority(query: str, doc_key: str, limit: int = 5):
-    section_hint = detect_section_hint(query)
-
-    if section_hint == "Президент":
-        return retrieve_article_range(doc_key, 40, 48, limit)
-
-    if section_hint == "Правительство":
-        return retrieve_article_range(doc_key, 64, 70, limit)
-
-    if section_hint == "Правосудие":
-        return retrieve_article_range(doc_key, 75, 84, limit)
-
-    return []
-
-
-def retrieve_current_priority(query: str, doc_key: str, limit: int = 5):
-    section_hint = detect_section_hint(query)
-
-    if section_hint == "Президент":
-        return retrieve_article_range(doc_key, 40, 48, limit)
-
-    if section_hint == "Правительство":
-        return retrieve_article_range(doc_key, 64, 70, limit)
-
-    if section_hint == "Правосудие":
-        return retrieve_article_range(doc_key, 75, 84, limit)
-
-    return []
-
-
 def retrieve_section_priority(query: str, doc_key: str, limit: int = 5):
     section_hint = detect_section_hint(query)
     if not section_hint:
@@ -215,9 +175,6 @@ def retrieve_keyword_priority(query: str, doc_key: str, limit: int = 5):
     if "изменения" in q and "конституция" in q:
         keyword_groups.append(["изменения", "референдум", "вступает в силу", "переходные положения"])
 
-    if "правительство" in q:
-        keyword_groups.append(["правительство", "премьер-министр", "постановления", "распоряжения"])
-
     if not keyword_groups:
         return []
 
@@ -229,7 +186,7 @@ def retrieve_keyword_priority(query: str, doc_key: str, limit: int = 5):
     for group in keyword_groups:
         for kw in group:
             like = f"%{kw}%"
-            conditions.append("c.body ilike %s or coalesce(c.heading, '') ilike %s")
+            conditions.append("(c.body ilike %s or coalesce(c.heading, '') ilike %s)")
             condition_params.extend([like, like])
 
     for group in keyword_groups:
@@ -305,20 +262,28 @@ def retrieve_trgm(query: str, doc_key: str, limit: int = 5):
     return fetch_all(sql, (q, q, doc_key, limit))
 
 
+def retrieve_change_explanation(query: str):
+    norm_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
+    if not norm_rows:
+        norm_rows = retrieve_article_range(DOCS["norm_ru"], 93, 94, limit=3)
+
+    commentary_rows = retrieve_keyword_priority(query, DOCS["commentary_ru"], limit=5)
+    if not commentary_rows:
+        commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=5)
+
+    return norm_rows[:3] + commentary_rows[:2]
+
+
 def retrieve_ordinary(query: str):
     q = normalize_query(query)
 
     if any(x in q for x in ["изменения", "новая конституция"]):
-        return retrieve_explanation(query)
+        return retrieve_change_explanation(query)
 
     if any(x in q for x in ["цензура", "свобода слова", "информация"]):
         keyword_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
         if keyword_rows:
             return keyword_rows
-
-    current_rows = retrieve_current_priority(query, DOCS["norm_ru"], limit=5)
-    if current_rows:
-        return current_rows
 
     section_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=5)
     if section_rows:
@@ -336,62 +301,66 @@ def retrieve_ordinary(query: str):
 
 
 def retrieve_explanation(query: str):
-    norm_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
-    if not norm_rows:
-        norm_rows = retrieve_current_priority(query, DOCS["norm_ru"], limit=5)
-    if not norm_rows:
-        norm_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=5)
-    if not norm_rows:
-        norm_rows = retrieve_fts(query, DOCS["norm_ru"], limit=5)
-    if not norm_rows:
-        norm_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=5)
+    q = normalize_query(query)
 
-    commentary_rows = retrieve_keyword_priority(query, DOCS["commentary_ru"], limit=3)
+    if any(x in q for x in ["изменения", "новая конституция", "новеллы"]):
+        return retrieve_change_explanation(query)
+
+    norm_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
+    if not norm_rows:
+        norm_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=3)
+    if not norm_rows:
+        norm_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
+    if not norm_rows:
+        norm_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
+
+    commentary_rows = retrieve_section_priority(query, DOCS["commentary_ru"], limit=2)
     if not commentary_rows:
-        commentary_rows = retrieve_section_priority(query, DOCS["commentary_ru"], limit=3)
+        commentary_rows = retrieve_keyword_priority(query, DOCS["commentary_ru"], limit=2)
     if not commentary_rows:
-        commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=3)
+        commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=2)
     if not commentary_rows:
-        commentary_rows = retrieve_trgm(query, DOCS["commentary_ru"], limit=3)
+        commentary_rows = retrieve_trgm(query, DOCS["commentary_ru"], limit=2)
 
     if norm_rows:
-        return norm_rows[:3] + commentary_rows[:2]
+        return norm_rows + commentary_rows
 
     faq_rows = retrieve_fts(query, DOCS["faq_ru"], limit=2)
     if not faq_rows:
         faq_rows = retrieve_trgm(query, DOCS["faq_ru"], limit=2)
 
-    return commentary_rows[:2] + faq_rows[:2]
+    return commentary_rows + faq_rows
 
 
 def retrieve_comparison(query: str):
     q = normalize_query(query)
 
-    current_rows = retrieve_current_priority(query, DOCS["norm_ru"], limit=5)
-    if not current_rows and "правительство" in q:
-        current_rows = retrieve_article_range(DOCS["norm_ru"], 64, 70, limit=5)
+    if "правительство" in q:
+        current_rows = retrieve_article_range(DOCS["norm_ru"], 64, 70, limit=3)
+        historical_rows = retrieve_article_range(DOCS["deprecated_ru"], 64, 70, limit=3)
+        return {
+            "2026": current_rows,
+            "1995": historical_rows,
+        }
+
+    current_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
     if not current_rows:
-        current_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
-    if not current_rows:
-        current_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=5)
+        current_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=3)
     if not current_rows:
         current_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
     if not current_rows:
         current_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
 
-    historical_rows = retrieve_historical_priority(query, DOCS["deprecated_ru"], limit=5)
-    if not historical_rows and "правительство" in q:
-        historical_rows = retrieve_article_range(DOCS["deprecated_ru"], 64, 70, limit=5)
-    if not historical_rows:
-        historical_rows = retrieve_keyword_priority(query, DOCS["deprecated_ru"], limit=5)
-    if not historical_rows:
+    if detect_section_hint(query) == "Президент":
+        historical_rows = retrieve_article_range(DOCS["deprecated_ru"], 40, 48, limit=3)
+    else:
         historical_rows = retrieve_fts(query, DOCS["deprecated_ru"], limit=3)
-    if not historical_rows:
-        historical_rows = retrieve_trgm(query, DOCS["deprecated_ru"], limit=3)
+        if not historical_rows:
+            historical_rows = retrieve_trgm(query, DOCS["deprecated_ru"], limit=3)
 
     return {
-        "2026": current_rows[:3],
-        "1995": historical_rows[:3],
+        "2026": current_rows,
+        "1995": historical_rows,
     }
 
 
