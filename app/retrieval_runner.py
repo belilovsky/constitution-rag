@@ -13,7 +13,7 @@ DOCS = {
 def classify_query(query: str) -> str:
     q = query.lower()
 
-    if re.search(r"(статья|ст\.)\s*\d+", q):
+    if re.search(r"\bстат\w*\s*\d+\b", q) or re.search(r"\bст\.\s*\d+\b", q):
         return "exact"
     if "1995" in q and "2026" in q:
         return "comparison"
@@ -25,7 +25,7 @@ def classify_query(query: str) -> str:
 
 
 def extract_article_number(query: str):
-    m = re.search(r"(?:статья|ст\.)\s*(\d+)", query.lower())
+    m = re.search(r"\b(?:стат\w*|ст\.)\s*(\d+)\b", query.lower())
     return int(m.group(1)) if m else None
 
 
@@ -93,25 +93,87 @@ def retrieve_trgm(query: str, doc_key: str, limit: int = 5):
     return fetch_all(sql, (query, query, doc_key, limit))
 
 
+def retrieve_section_fallback(query: str, doc_key: str, limit: int = 5):
+    q = query.lower()
+
+    section_hint = None
+    if "президент" in q:
+        section_hint = "Президент"
+    elif "правительство" in q:
+        section_hint = "Правительство"
+    elif "суд" in q:
+        section_hint = "Правосудие"
+    elif "права" in q or "свободы" in q:
+        section_hint = "Основные права, свободы и обязанности"
+
+    if not section_hint:
+        return []
+
+    sql = """
+    select
+      d.doc_key,
+      d.status,
+      c.chunk_index,
+      c.heading,
+      c.meta,
+      c.body
+    from document_chunks c
+    join documents d on d.id = c.document_id
+    where d.doc_key = %s
+      and (
+        c.heading ilike %s
+        or coalesce(c.meta->>'section_title', '') ilike %s
+      )
+    order by c.chunk_index
+    limit %s
+    """
+    return fetch_all(sql, (doc_key, f"%{section_hint}%", f"%{section_hint}%", limit))
+
+
 def retrieve_ordinary(query: str):
     rows = retrieve_fts(query, DOCS["norm_ru"], limit=5)
     if rows:
         return rows
-    return retrieve_trgm(query, DOCS["norm_ru"], limit=5)
+
+    rows = retrieve_trgm(query, DOCS["norm_ru"], limit=5)
+    if rows:
+        return rows
+
+    return retrieve_section_fallback(query, DOCS["norm_ru"], limit=5)
 
 
 def retrieve_explanation(query: str):
     norm_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
+    if not norm_rows:
+        norm_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
+
     commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=2)
+    if not commentary_rows:
+        commentary_rows = retrieve_trgm(query, DOCS["commentary_ru"], limit=2)
+
     if norm_rows:
         return norm_rows + commentary_rows
+
     faq_rows = retrieve_fts(query, DOCS["faq_ru"], limit=2)
+    if not faq_rows:
+        faq_rows = retrieve_trgm(query, DOCS["faq_ru"], limit=2)
+
     return commentary_rows + faq_rows
 
 
 def retrieve_comparison(query: str):
     current_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
+    if not current_rows:
+        current_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
+    if not current_rows:
+        current_rows = retrieve_section_fallback(query, DOCS["norm_ru"], limit=3)
+
     historical_rows = retrieve_fts(query, DOCS["deprecated_ru"], limit=3)
+    if not historical_rows:
+        historical_rows = retrieve_trgm(query, DOCS["deprecated_ru"], limit=3)
+    if not historical_rows:
+        historical_rows = retrieve_section_fallback(query, DOCS["deprecated_ru"], limit=3)
+
     return {
         "2026": current_rows,
         "1995": historical_rows,
