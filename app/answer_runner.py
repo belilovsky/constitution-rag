@@ -90,7 +90,7 @@ def build_context_block(payload: dict[str, Any]) -> str:
     results = payload.get("results")
 
     if not results:
-        return "RETRIEVAL_MODE: empty\n\nRETRIEVED_CONTEXT:\n<empty>"
+        return "RETRIEVAL_MODE: empty\n\nRETRIEVED_CONTEXT:\n(нет найденных материалов)"
 
     if mode == "comparison":
         parts = ["RETRIEVAL_MODE: comparison", "", "CONTEXT_2026:"]
@@ -145,14 +145,9 @@ def has_any_results(payload: dict[str, Any]) -> bool:
 def generate_answer(query: str) -> dict[str, Any]:
     payload = run_retrieval(query)
 
-    if not has_any_results(payload):
-        return {
-            "query": query,
-            "mode": payload.get("mode", "unknown"),
-            "answer": SAFE_FAILURE_TEXT,
-            "retrieval": payload,
-        }
-
+    # Always call LLM -- even with empty retrieval.
+    # System prompt has rules for safe failure, meta-questions,
+    # role-switch handling that require LLM judgment.
     system_prompt = load_system_prompt()
     user_prompt = build_user_prompt(query, payload)
 
@@ -170,10 +165,7 @@ def generate_answer(query: str) -> dict[str, Any]:
 
     answer_text = (response.output_text or "").strip()
     if not answer_text:
-        answer_text = (
-            "В найденных материалах недостаточно данных, чтобы подтвердить это точно. "
-            "Могу помочь, если вы уточните статью, тему или формулировку вопроса."
-        )
+        answer_text = SAFE_FAILURE_TEXT
 
     return {
         "query": query,
