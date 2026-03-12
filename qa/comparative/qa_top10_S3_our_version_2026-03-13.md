@@ -9,8 +9,8 @@
 - `environment`: `staging`
 - `service / endpoint`: `constitution-rag chatbot`
 - `bot build / branch / commit`:
-- `prompt version`: `system_prompt_canonical_v1-6`
-- `retrieval policy version`: `retrieval_policy_v1-4`
+- `prompt version`: `system_prompt_canonical_v1`
+- `retrieval policy version`: `retrieval_policy_v1`
 - `test pack version`: `red_team_hostile_25`
 - `dataset snapshot`: `8 datasets loaded, empty_body=0 verified`
 - `retrieval build / commit`: `56ea43a`
