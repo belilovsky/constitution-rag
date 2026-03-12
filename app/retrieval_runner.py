@@ -10,8 +10,44 @@ DOCS = {
 }
 
 
+def normalize_query(query: str) -> str:
+    q = query.lower().strip()
+
+    replacements = {
+        "президента": "президент",
+        "президенту": "президент",
+        "президентом": "президент",
+        "президенты": "президент",
+        "полномочий": "полномочия",
+        "полномочиями": "полномочия",
+        "правительства": "правительство",
+        "правительством": "правительство",
+        "судами": "суд",
+        "суда": "суд",
+    }
+
+    for src, dst in replacements.items():
+        q = q.replace(src, dst)
+
+    return q
+
+
+def detect_section_hint(query: str):
+    q = normalize_query(query)
+
+    if "президент" in q:
+        return "Президент"
+    if "правительство" in q:
+        return "Правительство"
+    if "суд" in q or "правосуд" in q:
+        return "Правосудие"
+    if "право" in q or "свобод" in q:
+        return "Основные права, свободы и обязанности"
+    return None
+
+
 def classify_query(query: str) -> str:
-    q = query.lower()
+    q = normalize_query(query)
 
     if re.search(r"\bстат\w*\s*\d+\b", q) or re.search(r"\bст\.\s*\d+\b", q):
         return "exact"
@@ -25,7 +61,8 @@ def classify_query(query: str) -> str:
 
 
 def extract_article_number(query: str):
-    m = re.search(r"\b(?:стат\w*|ст\.)\s*(\d+)\b", query.lower())
+    q = normalize_query(query)
+    m = re.search(r"\b(?:стат\w*|ст\.)\s*(\d+)\b", q)
     return int(m.group(1)) if m else None
 
 
@@ -51,7 +88,42 @@ def retrieve_exact_article(article_number: int, doc_key: str = DOCS["norm_ru"], 
     return fetch_all(sql, (doc_key, str(article_number), f"Статья {article_number}%", limit))
 
 
+def retrieve_section_priority(query: str, doc_key: str, limit: int = 5):
+    section_hint = detect_section_hint(query)
+    if not section_hint:
+        return []
+
+    sql = """
+    select
+      d.doc_key,
+      d.status,
+      c.chunk_index,
+      c.heading,
+      c.meta,
+      c.body,
+      case
+        when coalesce(c.meta->>'section_title', '') ilike %s then 3
+        when coalesce(c.heading, '') ilike %s then 2
+        when c.body ilike %s then 1
+        else 0
+      end as priority_score
+    from document_chunks c
+    join documents d on d.id = c.document_id
+    where d.doc_key = %s
+      and (
+        coalesce(c.meta->>'section_title', '') ilike %s
+        or coalesce(c.heading, '') ilike %s
+        or c.body ilike %s
+      )
+    order by priority_score desc, c.chunk_index
+    limit %s
+    """
+    like = f"%{section_hint}%"
+    return fetch_all(sql, (like, like, like, doc_key, like, like, like, limit))
+
+
 def retrieve_fts(query: str, doc_key: str, limit: int = 5):
+    q = normalize_query(query)
     sql = """
     select
       d.doc_key,
@@ -68,10 +140,11 @@ def retrieve_fts(query: str, doc_key: str, limit: int = 5):
     order by rank desc, c.chunk_index
     limit %s
     """
-    return fetch_all(sql, (query, doc_key, query, limit))
+    return fetch_all(sql, (q, doc_key, q, limit))
 
 
 def retrieve_trgm(query: str, doc_key: str, limit: int = 5):
+    q = normalize_query(query)
     sql = """
     select
       d.doc_key,
@@ -90,64 +163,31 @@ def retrieve_trgm(query: str, doc_key: str, limit: int = 5):
     order by sim desc, c.chunk_index
     limit %s
     """
-    return fetch_all(sql, (query, query, doc_key, limit))
-
-
-def retrieve_section_fallback(query: str, doc_key: str, limit: int = 5):
-    q = query.lower()
-
-    section_hint = None
-    if "президент" in q:
-        section_hint = "Президент"
-    elif "правительство" in q:
-        section_hint = "Правительство"
-    elif "суд" in q:
-        section_hint = "Правосудие"
-    elif "права" in q or "свободы" in q:
-        section_hint = "Основные права, свободы и обязанности"
-
-    if not section_hint:
-        return []
-
-    sql = """
-    select
-      d.doc_key,
-      d.status,
-      c.chunk_index,
-      c.heading,
-      c.meta,
-      c.body
-    from document_chunks c
-    join documents d on d.id = c.document_id
-    where d.doc_key = %s
-      and (
-        c.heading ilike %s
-        or coalesce(c.meta->>'section_title', '') ilike %s
-      )
-    order by c.chunk_index
-    limit %s
-    """
-    return fetch_all(sql, (doc_key, f"%{section_hint}%", f"%{section_hint}%", limit))
+    return fetch_all(sql, (q, q, doc_key, limit))
 
 
 def retrieve_ordinary(query: str):
+    section_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=5)
+    if section_rows:
+        return section_rows
+
     rows = retrieve_fts(query, DOCS["norm_ru"], limit=5)
     if rows:
         return rows
 
-    rows = retrieve_trgm(query, DOCS["norm_ru"], limit=5)
-    if rows:
-        return rows
-
-    return retrieve_section_fallback(query, DOCS["norm_ru"], limit=5)
+    return retrieve_trgm(query, DOCS["norm_ru"], limit=5)
 
 
 def retrieve_explanation(query: str):
-    norm_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
+    norm_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
+    if not norm_rows:
+        norm_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
     if not norm_rows:
         norm_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
 
-    commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=2)
+    commentary_rows = retrieve_section_priority(query, DOCS["commentary_ru"], limit=2)
+    if not commentary_rows:
+        commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=2)
     if not commentary_rows:
         commentary_rows = retrieve_trgm(query, DOCS["commentary_ru"], limit=2)
 
@@ -162,17 +202,17 @@ def retrieve_explanation(query: str):
 
 
 def retrieve_comparison(query: str):
-    current_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
+    current_rows = retrieve_section_priority(query, DOCS["norm_ru"], limit=3)
+    if not current_rows:
+        current_rows = retrieve_fts(query, DOCS["norm_ru"], limit=3)
     if not current_rows:
         current_rows = retrieve_trgm(query, DOCS["norm_ru"], limit=3)
-    if not current_rows:
-        current_rows = retrieve_section_fallback(query, DOCS["norm_ru"], limit=3)
 
-    historical_rows = retrieve_fts(query, DOCS["deprecated_ru"], limit=3)
+    historical_rows = retrieve_section_priority(query, DOCS["deprecated_ru"], limit=3)
+    if not historical_rows:
+        historical_rows = retrieve_fts(query, DOCS["deprecated_ru"], limit=3)
     if not historical_rows:
         historical_rows = retrieve_trgm(query, DOCS["deprecated_ru"], limit=3)
-    if not historical_rows:
-        historical_rows = retrieve_section_fallback(query, DOCS["deprecated_ru"], limit=3)
 
     return {
         "2026": current_rows,
