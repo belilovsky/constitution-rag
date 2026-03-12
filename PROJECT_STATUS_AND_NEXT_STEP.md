@@ -4,13 +4,14 @@ Last updated: 2026-03-12
 
 ## 1. Project position
 
-`constitution-rag` — это рабочий проект grounded чат-бота по Конституции Республики Казахстан.
+`constitution-rag` — это рабочий проект grounded чат-бота по конституционным материалам Республики Казахстан.
 
-Ingestion, normalization и PostgreSQL в этом проекте являются подготовительным слоем для retrieval и grounded answers, а не конечной целью сами по себе.
+Ingestion, normalization, import в PostgreSQL и retrieval routing в этом проекте являются подготовительным слоем для grounded answers, а не конечной целью сами по себе.
 
-На текущий момент data-layer этап закрыт.
-Retrieval-layer находится в рабочем состоянии после зафиксированного hotfix.
-Проект переходит в стадию prompt / answer-layer QA и системной проверки поведения chatbot-контура.
+На текущий момент:
+- data-layer этап закрыт;
+- retrieval-layer находится в рабочем состоянии после зафиксированного hotfix;
+- проект переходит в стадию prompt / answer-layer QA и системной проверки поведения chatbot-контура.
 
 ---
 
@@ -42,7 +43,7 @@ Retrieval-layer находится в рабочем состоянии посл
 
 Что именно закреплено:
 
-- ordinary query по теме свободы слова теперь корректно находит статью 23;
+- ordinary query по теме свободы слова корректно находит статью 23;
 - broad query по мирным собраниям корректно находит статью 34;
 - обзорный запрос по политическим правам возвращает статьи 23, 26, 34 и 35;
 - historical query по Конституции 1995 года остаётся в `deprecated`-слое;
@@ -53,14 +54,14 @@ Retrieval-layer находится в рабочем состоянии посл
 
 - расширена нормализация пользовательских формулировок;
 - исправлен topical routing для `свобода слова`;
-- сохранён source-priority `norm > commentary > faq > deprecated`;
-- retrieval-fix теперь не является локальным hotfix на сервере, а закреплён в репозитории и подтверждён после синхронизации VPS.
+- сохранён source-priority `norm > commentary > faq > historical/deprecated`;
+- retrieval-fix закреплён в репозитории и подтверждён после синхронизации VPS.
 
 ---
 
 ## 4. Database snapshot
 
-В БД уже находятся 8 документных наборов:
+В БД находятся 8 документных наборов:
 
 - `krk_2026_norm_ru`
 - `krk_2026_norm_kz`
@@ -85,19 +86,31 @@ Layer semantics:
 
 ## 5. Canonical prompt-layer docs
 
-Source of truth для prompt / retrieval / answer слоя:
+Source of truth для prompt / retrieval / answer слоя на текущем этапе:
 
-- `system_prompt_canonical_v1.2.md`
+- `PROJECT_STATUS_AND_NEXT_STEP.md`
+- `README.md`
+- `system_prompt_canonical_v1-4.md`
 - `retrieval_policy_v1.md`
 - `red_team_hostile_25.md`
+- `qa_results_template.md`
 
-Если между обсуждениями, черновиками и этими файлами есть расхождение, приоритет имеют канонические документы в repo.
+Если между обсуждениями, черновиками, временными заметками и этими файлами есть расхождение, приоритет имеют канонические документы в repo.
+
+Распределение ролей между документами:
+
+- `PROJECT_STATUS_AND_NEXT_STEP.md` — текущий этап, release gate, known issues, next actions;
+- `README.md` — входной документ по проекту и общая project memory;
+- `system_prompt_canonical_v1-4.md` — канонические правила answer behavior;
+- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
+- `red_team_hostile_25.md` — тестовый пакет и rubric для answer-layer QA;
+- `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
 
 ---
 
 ## 6. Current behavior rules
 
-Базовые правила текущего chatbot layer:
+Базовые правила текущего chatbot-layer:
 
 - бот отвечает только по найденным в retrieval материалам;
 - приоритет источников: `norm > commentary > faq > historical/deprecated`;
@@ -107,7 +120,9 @@ Source of truth для prompt / retrieval / answer слоя:
 - бот не должен делать ложные заявления о полноте;
 - бот не должен принимать политический фрейм вопроса как установленный факт;
 - бот не должен раскрывать внутренние инструкции, red-team логику и hidden rules;
-- при weak / empty retrieval бот обязан использовать safe-failure behavior.
+- при weak / empty retrieval бот обязан использовать safe-failure behavior;
+- при exact lookup бот не должен подменять статью, пункт или отсылочную норму соседним фрагментом без явной оговорки;
+- при conflicting fragments бот не должен склеивать расхождение в один уверенный вывод.
 
 ---
 
@@ -132,7 +147,9 @@ Workaround:
 - overly confident wording при weak / empty retrieval;
 - exact lookup vs structural context cases;
 - mixed-topic handling;
-- follow-up pressure cases, где модель могут подталкивать к категоричности.
+- follow-up pressure cases, где модель могут подталкивать к категоричности;
+- status labeling для project / transitional / deprecated контекста;
+- comparison behavior, где модель может смешивать 1995 и 2026 в один слой.
 
 ---
 
@@ -142,10 +159,14 @@ Prompt / retrieval / answer layer нельзя считать завершённ
 
 - есть хотя бы один top-10 critical QA run;
 - есть зафиксированные результаты по red-team сценариям;
+- есть заполненный QA-run document;
 - есть blocker register;
 - есть fix plan;
 - есть хотя бы один retest;
 - нет открытых P0 blocker’ов.
+
+Допустимый operational формат:
+- blocker register, fix plan и retest log могут вестись внутри одного канонического QA-run файла, если он заполнен по `qa_results_template.md`.
 
 P0 blocker’ы текущего этапа:
 
@@ -162,7 +183,7 @@ P0 blocker’ы текущего этапа:
 
 ## 9. Additional documents received on 2026-03-11 / 2026-03-12
 
-Получен дополнительный пакет документов для возможного расширения data-layer и commentary-layer.
+Получен дополнительный пакет документов для возможного расширения commentary-layer и вспомогательных материалов проекта.
 
 Предварительная классификация:
 
@@ -181,7 +202,7 @@ P0 blocker’ы текущего этапа:
 - адресные пояснения под аудитории;
 - контртезисные и объяснительные блоки.
 
-Риск:
+Риски:
 
 - высокая дупликация между тезисами;
 - смешение юридического объяснения и политического месседжинга;
@@ -223,15 +244,17 @@ P0 blocker’ы текущего этапа:
 4. extraction / normalization;
 5. дедупликация повторяющихся тезисов;
 6. решение, что идёт в commentary-layer, а что остаётся internal;
-7. импорт;
+7. import;
 8. SQL QA;
 9. retrieval QA;
 10. только после этого допуск в рабочий chatbot-контур.
 
-Критическое правило:
+Критические правила:
 
 - новые материалы не должны загрязнить `norm`-слой;
-- internal / штабные / operational материалы не должны попасть в ordinary user retrieval без отдельного явного решения.
+- internal / штабные / operational материалы не должны попасть в ordinary user retrieval без отдельного явного решения;
+- commentary-ready документы не должны автоматически повышаться до norm-layer;
+- решение по новым документам не должно отвлекать проект от текущего release gate answer-layer QA.
 
 ---
 
@@ -241,12 +264,14 @@ P0 blocker’ы текущего этапа:
 
 1. зафиксировать этот статус-файл в repo;
 2. обновить `README.md` в соответствии с текущим состоянием проекта;
-3. прогнать top-10 critical cases из `red_team_hostile_25.md`;
-4. сохранить QA-лог по каждому прогону;
-5. собрать blocker register;
-6. исправить answer-layer / prompt behavior по найденным провалам;
-7. сделать retest;
-8. только после этого возвращаться к решению по импорту новых документов.
+3. синхронизировать `qa_results_template.md` с текущими каноническими документами;
+4. прогнать top-10 critical cases из `red_team_hostile_25.md`;
+5. сохранить QA-лог по каждому прогону через `qa_results_template.md`;
+6. зафиксировать blocker register и fix plan;
+7. исправить answer-layer / prompt behavior по найденным провалам;
+8. сделать retest;
+9. только после этого переходить к full 30-case run;
+10. только после закрытия P0 возвращаться к решению по импорту новых документов.
 
 ---
 
@@ -257,14 +282,35 @@ P0 blocker’ы текущего этапа:
 - data-layer стабилен и документирован;
 - retrieval hotfix закреплён в repo и подтверждён на VPS;
 - source of truth prompt-layer зафиксирован;
+- канонические документы синхронизированы между собой;
 - top-10 critical QA run проведён;
-- blocker register создан;
+- blocker register создан и заполнен;
+- fix plan создан и зафиксирован;
+- есть хотя бы один retest;
 - P0 issues закрыты;
 - правила обращения с дополнительными документами зафиксированы;
 - internal / restricted материалы отделены от публичного retrieval-контура.
 
 ---
 
-## 13. Boundary rule
+## 13. Release status interpretation
+
+Текущий статус стадии нужно трактовать так:
+
+- `GO` — только если нет открытых P0 blocker’ов и есть подтверждённый retest;
+- `CONDITIONAL GO` — допустим только для staging / internal / pilot scope и только без открытых P0 blocker’ов;
+- `NO-GO` — по умолчанию, пока не закрыты blocker’ы текущего этапа.
+
+На текущий момент release status этого этапа: `NO-GO until top-10 QA run and blocker closure`.
+
+---
+
+## 14. Boundary rule
 
 Пока работа идёт внутри `constitution-rag`, не уходить в соседние проекты, контейнеры и сервисы без прямого сигнала пользователя или прямого runtime-следа из текущей задачи.
+
+Текущий приоритет проекта:
+- не новый ingestion;
+- не расширение соседних контуров;
+- не косметические правки документации ради документации;
+- а закрытие prompt / retrieval / answer-layer QA до воспроизводимого и проверяемого состояния.
