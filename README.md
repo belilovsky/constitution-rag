@@ -1,6 +1,6 @@
 # constitution-rag
 
-`constitution-rag` — это рабочий репозиторий проекта grounded чат-бота по Конституции Казахстана.
+`constitution-rag` — это рабочий репозиторий проекта grounded чат-бота по конституционным материалам Республики Казахстан.
 
 Проект не сводится к ingestion или ETL. Ingestion, normalization, import в PostgreSQL и retrieval routing здесь являются подготовительным слоем для chatbot-контура, который должен отвечать по найденным конституционным материалам, а не по “памяти модели”.
 
@@ -13,13 +13,13 @@
 
 ## Что это за проект
 
-Цель проекта — собрать воспроизводимую и безопасную основу для чат-бота, который отвечает на вопросы по Конституции Республики Казахстан с опорой на retrieval и source-priority.
+Цель проекта — собрать воспроизводимую и безопасную основу для чат-бота, который отвечает на вопросы по Конституции Республики Казахстан с опорой на retrieval, source-priority и answer discipline.
 
 Базовая схема проекта:
 
 `raw source files -> normalized data -> PostgreSQL import -> retrieval layer -> grounded chatbot answers`
 
-Это означает, что PostgreSQL и import scripts — не конечный продукт, а опорный слой для retrieval и answer-layer.
+Это означает, что PostgreSQL, import scripts и retrieval routing — не конечный продукт, а опорный слой для answer-layer и прикладочного поведения чат-бота.
 
 ---
 
@@ -50,6 +50,8 @@
 - historical / comparison режимы сохраняют разделение между `2026 norm` и `1995 deprecated`;
 - weak-tech queries не компенсируются выдуманным ответом.
 
+Важно: рабочий retrieval после hotfix ещё не означает production-ready chatbot behavior. Текущий release gate теперь находится на уровне prompt / answer-layer QA.
+
 ---
 
 ## Источники и слои
@@ -76,9 +78,15 @@
 
 - `1995 deprecated` не должен подмешиваться как текущая норма по умолчанию.
 
+Базовый приоритет источников:
+
+- `norm > commentary > faq > historical/deprecated`
+
+Это правило должно соблюдаться и в retrieval, и в answer-layer.
+
 ---
 
-## Архитектура текущего контура
+## Архитектура контура
 
 Текущая структура работы проекта:
 
@@ -104,6 +112,7 @@
 - no false completeness
 - no commentary-as-norm substitution
 - neutral handling of political framing
+- no hidden-rules leakage
 
 Сейчас первый слой завершён, второй находится в рабочем состоянии после retrieval hotfix, а третий является следующим основным этапом.
 
@@ -141,7 +150,7 @@
 
 ---
 
-## Какие таблицы и данные используются
+## Данные и таблицы
 
 Импорт идёт в PostgreSQL.
 
@@ -171,14 +180,25 @@
 
 ---
 
-## Канонические документы проекта
+## Канонические документы
 
 Source of truth для текущего chatbot-layer:
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md`
-- `system_prompt_canonical_v1.2.md`
+- `README.md`
+- `system_prompt_canonical_v1-4.md`
 - `retrieval_policy_v1.md`
 - `red_team_hostile_25.md`
+- `qa_results_template.md`
+
+Роль документов:
+
+- `PROJECT_STATUS_AND_NEXT_STEP.md` — текущая стадия, release gate, known issues, next actions;
+- `README.md` — общий вход в проект и project memory верхнего уровня;
+- `system_prompt_canonical_v1-4.md` — канонические правила answer behavior;
+- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
+- `red_team_hostile_25.md` — тестовый пакет и rubric;
+- `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
 
 Если между рабочими обсуждениями, временными заметками и этими файлами есть расхождение, приоритет имеют канонические документы в репозитории.
 
@@ -195,7 +215,7 @@ Workaround:
 - читать полный `body`;
 - обрезать preview уже в Python.
 
-Открытые risk areas следующего этапа:
+Открытые risk areas текущего этапа:
 
 - false completeness на broad queries;
 - commentary / FAQ substitution вместо norm;
@@ -203,11 +223,13 @@ Workaround:
 - political framing и pressure cases;
 - meta-leakage внутренних правил;
 - overly confident answer при weak retrieval;
-- mixed-topic и structural-context edge cases.
+- mixed-topic и structural-context edge cases;
+- exact lookup, где модель может подменить нужную норму соседним фрагментом;
+- status labeling для project / transitional / deprecated контекста.
 
 ---
 
-## Что не должно попадать в обычный retrieval
+## Дополнительные документы
 
 Дополнительные документы, связанные с operational / campaign / штабной работой, не должны автоматически попадать в обычный пользовательский retrieval.
 
@@ -224,23 +246,26 @@ Workaround:
 9. retrieval QA;
 10. только после этого допуск в chatbot-контур.
 
-Критическое правило:
+Критические правила:
 
 - новые документы не должны загрязнять `norm`-слой;
-- internal / штабные материалы не должны случайно попасть в production retrieval.
+- internal / штабные материалы не должны случайно попасть в production retrieval;
+- commentary-ready документы не должны автоматически трактоваться как norm.
 
 ---
 
-## Что дальше
+## QA и release gate
 
 Следующий обязательный этап проекта:
 
-1. прогнать top red-team scenarios;
-2. сохранить QA-лог;
+1. прогнать top-10 critical cases из `red_team_hostile_25.md`;
+2. сохранить QA-лог через `qa_results_template.md`;
 3. собрать blocker register;
-4. исправить prompt / answer behavior по результатам;
-5. сделать retest;
-6. только после этого возвращаться к решению об импорте дополнительных документов.
+4. зафиксировать fix plan;
+5. исправить prompt / answer behavior по результатам;
+6. сделать retest;
+7. только после этого переходить к full QA run;
+8. только после закрытия P0 решать вопрос о возврате к импорту дополнительных документов.
 
 Иными словами, следующий фокус проекта — не ingestion, а поведение чат-бота:
 - как он держит source-priority;
@@ -249,10 +274,6 @@ Workaround:
 - не смешивает ли 1995 и 2026;
 - не поддаётся ли политическому фреймингу;
 - безопасно ли ведёт себя при слабом retrieval.
-
----
-
-## Release rule
 
 Текущий chatbot-layer нельзя считать production-ready, пока не закрыты P0 blocker’ы:
 
@@ -270,3 +291,8 @@ Workaround:
 ## Boundary rule
 
 Пока работа идёт внутри `constitution-rag`, не уходить в соседние проекты, контейнеры и сервисы без прямого сигнала пользователя или прямого runtime-следа из текущей задачи.
+
+Текущий operational приоритет:
+- закрыть prompt / retrieval / answer-layer QA;
+- зафиксировать blocker’ы и retest;
+- только потом расширять knowledge base и возвращаться к новым ingestion-решениям.
