@@ -90,8 +90,8 @@ Source of truth для prompt / retrieval / answer слоя на текущем 
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md`
 - `README.md`
-- `system_prompt_canonical_v1-6.md`
-- `retrieval_policy_v1-4.md`
+- `system_prompt_canonical_v1.md`
+- `retrieval_policy_v1.md`
 - `red_team_hostile_25.md`
 - `qa_results_template.md`
 
@@ -101,8 +101,8 @@ Source of truth для prompt / retrieval / answer слоя на текущем 
 
 - `PROJECT_STATUS_AND_NEXT_STEP.md` — текущий этап, release gate, known issues, next actions;
 - `README.md` — входной документ по проекту и общая project memory;
-- `system_prompt_canonical_v1-6.md` — канонические правила answer behavior;
-- `retrieval_policy_v1-4.md` — канонические правила retrieval routing и source-priority;
+- `system_prompt_canonical_v1.md` — канонические правила answer behavior;
+- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
 - `red_team_hostile_25.md` — тестовый пакет и rubric для answer-layer QA;
 - `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
 
@@ -263,7 +263,7 @@ P0 blocker’ы текущего этапа:
 
 1. зафиксировать этот статус-файл в repo;
 2. обновить `README.md` в соответствии с текущим состоянием проекта;
-3. синхронизировать канонические документы между собой: `system_prompt_canonical_v1-6.md`, `retrieval_policy_v1-4.md`, `red_team_hostile_25.md`, `qa_results_template.md`;
+3. синхронизировать канонические документы между собой: `system_prompt_canonical_v1.md`, `retrieval_policy_v1.md`, `red_team_hostile_25.md`, `qa_results_template.md`;
 4. сделать один doc-sync commit;
 5. прогнать top-10 critical cases из `red_team_hostile_25.md`;
 6. сохранить QA-лог по каждому прогону через `qa_results_template.md`;
