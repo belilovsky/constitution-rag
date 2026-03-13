@@ -33,7 +33,7 @@ def get_client() -> OpenAI:
 
 
 def get_model_name() -> str:
-    return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    return os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 
 def clip_text(text: str, limit: int = 4000) -> str:
