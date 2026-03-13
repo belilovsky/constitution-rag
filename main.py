@@ -34,6 +34,12 @@ from app.answer_runner import (
 from app.retrieval_runner import run_retrieval
 from app.db import get_conn, put_conn, fetch_all
 from app.faq_match import faq_lookup
+from app.conversation_classifier import (
+    classify_conversational,
+    META_SYSTEM_ADDENDUM,
+    FOLLOWUP_SYSTEM_ADDENDUM,
+)
+from app.retrieval_runner import detect_language
 
 logger = logging.getLogger("constitution_rag")
 
@@ -313,12 +319,74 @@ async def ask_stream(req: AskRequest):
         full_answer = []
 
         try:
-            # 1. Retrieval (sync, in thread)
-            payload = await asyncio.to_thread(run_retrieval, req.query)
-            lang = payload.get("lang", "ru")
-            mode = payload.get("mode", "unknown")
+            lang = detect_language(req.query)
 
-            # FAQ cache: instant response (only for first message, no history)
+            # ── Conversational routing: greetings, meta, followup ──
+            conv_type, conv_response = classify_conversational(req.query, lang)
+
+            if conv_type == "greeting":
+                # Instant greeting, no LLM or retrieval
+                meta = {"request_id": request_id, "mode": "greeting", "lang": lang}
+                yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
+                chunk_data = json.dumps({"text": conv_response}, ensure_ascii=False)
+                yield f"event: text\ndata: {chunk_data}\n\n"
+                latency_ms = int((time.time() - t0) * 1000)
+                done = {"request_id": request_id, "latency_ms": latency_ms}
+                yield f"event: done\ndata: {json.dumps(done)}\n\n"
+                _log_query(
+                    request_id=request_id, query=req.query,
+                    lang=lang, mode="greeting", chunks_used=0,
+                    answer_len=len(conv_response), latency_ms=latency_ms,
+                    model="static",
+                )
+                return
+
+            if conv_type in ("meta", "followup"):
+                # LLM with special addendum, no retrieval
+                sys_prompt = load_system_prompt()
+                addendum = META_SYSTEM_ADDENDUM if conv_type == "meta" else FOLLOWUP_SYSTEM_ADDENDUM
+                sys_prompt += addendum
+
+                meta = {"request_id": request_id, "mode": conv_type, "lang": lang}
+                yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
+
+                client = get_client()
+                model = get_model_name()
+                history_msgs = _trim_history(req.history)
+                messages = [{"role": "system", "content": sys_prompt}]
+                messages.extend(history_msgs)
+                messages.append({"role": "user", "content": req.query})
+
+                stream = client.responses.create(
+                    model=model, input=messages,
+                    temperature=0.3, stream=True,
+                )
+                for event in stream:
+                    if hasattr(event, "type") and event.type == "response.output_text.delta":
+                        delta = event.delta
+                        if delta:
+                            full_answer.append(delta)
+                            chunk_data = json.dumps({"text": delta}, ensure_ascii=False)
+                            yield f"event: text\ndata: {chunk_data}\n\n"
+
+                answer_text = "".join(full_answer).strip()
+                if not answer_text:
+                    answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
+                    fallback_data = json.dumps({"text": answer_text}, ensure_ascii=False)
+                    yield f"event: text\ndata: {fallback_data}\n\n"
+
+                latency_ms = int((time.time() - t0) * 1000)
+                done = {"request_id": request_id, "latency_ms": latency_ms}
+                yield f"event: done\ndata: {json.dumps(done)}\n\n"
+                _log_query(
+                    request_id=request_id, query=req.query,
+                    lang=lang, mode=conv_type, chunks_used=0,
+                    answer_len=len(answer_text), latency_ms=latency_ms,
+                    model=model,
+                )
+                return
+
+            # ── FAQ cache: instant response (only for first message, no history) ──
             if not req.history:
                 cached = faq_lookup(req.query)
                 if cached:
@@ -330,16 +398,18 @@ async def ask_stream(req: AskRequest):
                     done = {"request_id": request_id, "latency_ms": latency_ms}
                     yield f"event: done\ndata: {json.dumps(done)}\n\n"
                     _log_query(
-                        request_id=request_id,
-                        query=req.query,
-                        lang="ru",
-                        mode=f"faq_cache({cached['score']})",
-                        chunks_used=0,
-                        answer_len=len(cached["answer"]),
-                        latency_ms=latency_ms,
-                        model="cache",
+                        request_id=request_id, query=req.query,
+                        lang="ru", mode=f"faq_cache({cached['score']})",
+                        chunks_used=0, answer_len=len(cached["answer"]),
+                        latency_ms=latency_ms, model="cache",
                     )
                     return
+
+            # ── Normal retrieval path ──
+            # 1. Retrieval (sync, in thread)
+            payload = await asyncio.to_thread(run_retrieval, req.query)
+            lang = payload.get("lang", "ru")
+            mode = payload.get("mode", "unknown")
 
             # Send metadata event
             meta = {"request_id": request_id, "mode": mode, "lang": lang}
