@@ -179,7 +179,18 @@ def has_any_results(payload: dict[str, Any]) -> bool:
     return len(flatten_payload(payload)) > 0
 
 
-def generate_answer(query: str) -> dict[str, Any]:
+def generate_answer(
+    query: str,
+    history: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Generate a grounded answer.
+
+    Args:
+        query: current user question.
+        history: optional list of previous turns
+                 [{"role": "user"|"assistant", "content": "..."}].
+                 Used to give the LLM conversational context.
+    """
     payload = run_retrieval(query)
 
     # Always call LLM -- even with empty retrieval.
@@ -191,12 +202,17 @@ def generate_answer(query: str) -> dict[str, Any]:
     client = get_client()
     model = get_model_name()
 
+    # Build message list: system → history → current user prompt
+    messages: list[dict[str, str]] = [
+        {"role": "system", "content": system_prompt},
+    ]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_prompt})
+
     response = client.responses.create(
         model=model,
-        input=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
+        input=messages,
         temperature=0.1,
     )
 

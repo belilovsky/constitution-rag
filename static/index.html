@@ -300,6 +300,7 @@ const LABELS = {
 
 let currentLang = 'ru';
 let isStreaming = false;
+let chatHistory = [];  // [{role: 'user'|'assistant', content: '...'}]
 
 const chat = document.getElementById('chat');
 const query = document.getElementById('query');
@@ -350,6 +351,9 @@ function doSend() {
   query.value = '';
   query.style.height = 'auto';
 
+  // Track user message in history
+  chatHistory.push({ role: 'user', content: text });
+
   // Bot placeholder
   const botEl = addMessage('', 'bot');
   const typingEl = document.createElement('div');
@@ -381,7 +385,7 @@ async function streamAnswer(text, botEl, typingEl) {
     const resp = await fetch('/api/ask/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: text }),
+      body: JSON.stringify({ query: text, history: chatHistory.slice(0, -1).slice(-20) }),
     });
 
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -444,6 +448,16 @@ async function streamAnswer(text, botEl, typingEl) {
     toast.textContent = err.message;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 4000);
+  }
+
+  // Track bot response in history
+  if (fullText) {
+    chatHistory.push({ role: 'assistant', content: fullText });
+  }
+
+  // Keep history manageable (last 20 messages)
+  if (chatHistory.length > 20) {
+    chatHistory = chatHistory.slice(-20);
   }
 
   isStreaming = false;

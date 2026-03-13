@@ -12,6 +12,7 @@ import time
 import uuid
 import json
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
@@ -32,6 +33,8 @@ from app.answer_runner import (
 )
 from app.retrieval_runner import run_retrieval
 from app.db import get_conn, put_conn, fetch_all
+
+logger = logging.getLogger("constitution_rag")
 
 
 # ── Startup / shutdown ──────────────────────────────────────────────
@@ -78,7 +81,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="constitution-rag",
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
@@ -95,8 +98,18 @@ app.add_middleware(
 
 # ── Request / response models ──────────────────────────────────────
 
+class HistoryMessage(BaseModel):
+    role: str = Field(..., pattern="^(user|assistant)$")
+    content: str = Field(..., max_length=4000)
+
+
 class AskRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000)
+    history: list[HistoryMessage] = Field(
+        default_factory=list,
+        max_length=20,
+        description="Previous conversation turns (max 20). Each: {role, content}.",
+    )
 
 
 class AskResponse(BaseModel):
@@ -170,6 +183,17 @@ def _count_chunks(payload: dict) -> int:
     return len(results)
 
 
+def _trim_history(history: list[HistoryMessage]) -> list[dict[str, str]]:
+    """Convert history to OpenAI message format, keep last 10 turns max."""
+    msgs = []
+    for m in history[-10:]:
+        msgs.append({
+            "role": m.role,
+            "content": m.content[:2000],
+        })
+    return msgs
+
+
 # ── Health endpoint ─────────────────────────────────────────────────
 
 @app.get("/health")
@@ -204,7 +228,10 @@ async def ask(req: AskRequest):
     error_text = None
 
     try:
-        result = await asyncio.to_thread(generate_answer, req.query)
+        history_msgs = _trim_history(req.history)
+        result = await asyncio.to_thread(
+            generate_answer, req.query, history_msgs
+        )
         latency_ms = int((time.time() - t0) * 1000)
 
         payload = result.get("retrieval", {})
@@ -231,6 +258,7 @@ async def ask(req: AskRequest):
     except Exception as exc:
         latency_ms = int((time.time() - t0) * 1000)
         error_text = str(exc)[:500]
+        logger.exception("Error in /api/ask [%s]: %s", request_id, error_text)
         _log_query(
             request_id=request_id,
             query=req.query,
@@ -275,20 +303,21 @@ async def ask_stream(req: AskRequest):
             client = get_client()
             model = get_model_name()
 
-            # 3. Stream from OpenAI
+            # 3. Build messages with history
+            history_msgs = _trim_history(req.history)
+            messages = [{"role": "system", "content": system_prompt}]
+            messages.extend(history_msgs)
+            messages.append({"role": "user", "content": user_prompt})
+
+            # 4. Stream from OpenAI
             stream = client.responses.create(
                 model=model,
-                input=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
+                input=messages,
                 temperature=0.1,
                 stream=True,
             )
 
             for event in stream:
-                # responses.create with stream=True yields events;
-                # text delta is in output_text.delta
                 if hasattr(event, "type") and event.type == "response.output_text.delta":
                     delta = event.delta
                     if delta:
@@ -323,6 +352,7 @@ async def ask_stream(req: AskRequest):
         except Exception as exc:
             latency_ms = int((time.time() - t0) * 1000)
             error_text = str(exc)[:500]
+            logger.exception("Error in /api/ask/stream [%s]: %s", request_id, error_text)
             err_data = json.dumps({"error": error_text, "request_id": request_id})
             yield f"event: error\ndata: {err_data}\n\n"
 
