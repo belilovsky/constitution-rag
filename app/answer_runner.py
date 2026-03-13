@@ -4,7 +4,12 @@ from typing import Any
 
 from openai import OpenAI
 
-from app.retrieval_runner import run_retrieval
+from app.retrieval_runner import run_retrieval, detect_language
+from app.conversation_classifier import (
+    classify_conversational,
+    META_SYSTEM_ADDENDUM,
+    FOLLOWUP_SYSTEM_ADDENDUM,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -191,11 +196,58 @@ def generate_answer(
                  [{"role": "user"|"assistant", "content": "..."}].
                  Used to give the LLM conversational context.
     """
+    lang = detect_language(query)
+
+    # ── Conversational routing: greetings, meta, followup ──
+    conv_type, conv_response = classify_conversational(query, lang)
+
+    if conv_type == "greeting":
+        # Instant response, no LLM needed
+        return {
+            "query": query,
+            "mode": "greeting",
+            "lang": lang,
+            "answer": conv_response,
+            "retrieval": {},
+        }
+
+    if conv_type in ("meta", "followup"):
+        # Let LLM answer with special addendum, no retrieval
+        system_prompt = load_system_prompt()
+        addendum = META_SYSTEM_ADDENDUM if conv_type == "meta" else FOLLOWUP_SYSTEM_ADDENDUM
+        system_prompt += addendum
+
+        client = get_client()
+        model = get_model_name()
+
+        messages: list[dict[str, str]] = [
+            {"role": "system", "content": system_prompt},
+        ]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": query})
+
+        response = client.responses.create(
+            model=model,
+            input=messages,
+            temperature=0.3,
+        )
+
+        answer_text = (response.output_text or "").strip()
+        if not answer_text:
+            answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
+
+        return {
+            "query": query,
+            "mode": conv_type,
+            "lang": lang,
+            "answer": answer_text,
+            "retrieval": {},
+        }
+
+    # ── Normal retrieval path ──
     payload = run_retrieval(query)
 
-    # Always call LLM -- even with empty retrieval.
-    # System prompt has rules for safe failure, meta-questions,
-    # role-switch handling that require LLM judgment.
     system_prompt = load_system_prompt()
     user_prompt = build_user_prompt(query, payload)
 
@@ -203,7 +255,7 @@ def generate_answer(
     model = get_model_name()
 
     # Build message list: system → history → current user prompt
-    messages: list[dict[str, str]] = [
+    messages = [
         {"role": "system", "content": system_prompt},
     ]
     if history:
@@ -218,7 +270,6 @@ def generate_answer(
 
     answer_text = (response.output_text or "").strip()
     if not answer_text:
-        lang = payload.get("lang", "ru")
         answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
 
     return {
