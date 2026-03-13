@@ -236,55 +236,141 @@ async def ask(req: AskRequest):
     error_text = None
 
     try:
-        # FAQ cache: instant response for common questions
+        lang = detect_language(req.query)
+
+        # ── 1. Conversational classifier: greeting / smalltalk / meta ──
+        conv_type, conv_response = classify_conversational(req.query, lang)
+
+        if conv_type in ("greeting", "smalltalk"):
+            latency_ms = int((time.time() - t0) * 1000)
+            _log_query(
+                request_id=request_id, query=req.query,
+                lang=lang, mode=conv_type, chunks_used=0,
+                answer_len=len(conv_response), latency_ms=latency_ms,
+                model="static",
+            )
+            return AskResponse(
+                request_id=request_id, query=req.query,
+                mode=conv_type, lang=lang,
+                answer=conv_response, latency_ms=latency_ms,
+            )
+
+        if conv_type == "meta":
+            sys_prompt = load_system_prompt() + META_SYSTEM_ADDENDUM
+            client = get_client()
+            model = get_model_name()
+            history_msgs = _trim_history(req.history)
+            messages = [{"role": "system", "content": sys_prompt}]
+            messages.extend(history_msgs)
+            messages.append({"role": "user", "content": req.query})
+
+            resp = client.responses.create(
+                model=model, input=messages, temperature=0.3,
+            )
+            answer_text = resp.output_text.strip() if resp.output_text else ""
+            if not answer_text:
+                answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
+
+            latency_ms = int((time.time() - t0) * 1000)
+            _log_query(
+                request_id=request_id, query=req.query,
+                lang=lang, mode="meta", chunks_used=0,
+                answer_len=len(answer_text), latency_ms=latency_ms,
+                model=model,
+            )
+            return AskResponse(
+                request_id=request_id, query=req.query,
+                mode="meta", lang=lang,
+                answer=answer_text, latency_ms=latency_ms,
+            )
+
+        # ── 2. FAQ cache (only first message, no history) ──
         if not req.history:
             cached = faq_lookup(req.query)
             if cached:
                 latency_ms = int((time.time() - t0) * 1000)
                 _log_query(
-                    request_id=request_id,
-                    query=req.query,
-                    lang="ru",
-                    mode=f"faq_cache({cached['score']})",
-                    chunks_used=0,
-                    answer_len=len(cached["answer"]),
-                    latency_ms=latency_ms,
-                    model="cache",
+                    request_id=request_id, query=req.query,
+                    lang="ru", mode=f"faq_cache({cached['score']})",
+                    chunks_used=0, answer_len=len(cached["answer"]),
+                    latency_ms=latency_ms, model="cache",
                 )
                 return AskResponse(
-                    request_id=request_id,
-                    query=req.query,
-                    mode=cached["mode"],
-                    lang="ru",
-                    answer=cached["answer"],
-                    latency_ms=latency_ms,
+                    request_id=request_id, query=req.query,
+                    mode=cached["mode"], lang="ru",
+                    answer=cached["answer"], latency_ms=latency_ms,
                 )
 
+        # ── 3. Intent rewriter (rewrites using history context) ──
         history_msgs = _trim_history(req.history)
-        result = await asyncio.to_thread(
-            generate_answer, req.query, history_msgs
+        intent_result = await asyncio.to_thread(
+            rewrite_query, req.query, history_msgs
         )
+        rewritten = intent_result["rewritten_query"]
+        intent = intent_result["intent"]
+
+        # If rewriter says no retrieval needed
+        if not intent_result["needs_retrieval"]:
+            sys_prompt = load_system_prompt() + META_SYSTEM_ADDENDUM
+            client = get_client()
+            model = get_model_name()
+            messages = [{"role": "system", "content": sys_prompt}]
+            messages.extend(history_msgs)
+            messages.append({"role": "user", "content": req.query})
+
+            resp = client.responses.create(
+                model=model, input=messages, temperature=0.3,
+            )
+            answer_text = resp.output_text.strip() if resp.output_text else ""
+            if not answer_text:
+                answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
+
+            latency_ms = int((time.time() - t0) * 1000)
+            _log_query(
+                request_id=request_id, query=req.query,
+                lang=lang, mode=intent, chunks_used=0,
+                answer_len=len(answer_text), latency_ms=latency_ms,
+                model=model,
+            )
+            return AskResponse(
+                request_id=request_id, query=req.query,
+                mode=intent, lang=lang,
+                answer=answer_text, latency_ms=latency_ms,
+            )
+
+        # ── 4. Normal retrieval path (using REWRITTEN query) ──
+        payload = await asyncio.to_thread(run_retrieval, rewritten)
+        retrieval_lang = payload.get("lang", "ru")
+        mode = payload.get("mode", "unknown")
+
+        system_prompt = load_system_prompt()
+        user_prompt = build_user_prompt(req.query, payload)
+        client = get_client()
+        model = get_model_name()
+
+        messages = [{"role": "system", "content": system_prompt}]
+        messages.extend(history_msgs)
+        messages.append({"role": "user", "content": user_prompt})
+
+        resp = client.responses.create(
+            model=model, input=messages, temperature=0.1,
+        )
+        answer_text = resp.output_text.strip() if resp.output_text else ""
+        if not answer_text:
+            answer_text = SAFE_FAILURE_TEXT.get(retrieval_lang, SAFE_FAILURE_TEXT["ru"])
+
         latency_ms = int((time.time() - t0) * 1000)
-
-        payload = result.get("retrieval", {})
         _log_query(
-            request_id=request_id,
-            query=req.query,
-            lang=result.get("lang"),
-            mode=result.get("mode"),
+            request_id=request_id, query=req.query,
+            lang=retrieval_lang, mode=mode,
             chunks_used=_count_chunks(payload),
-            answer_len=len(result.get("answer", "")),
-            latency_ms=latency_ms,
-            model=get_model_name(),
+            answer_len=len(answer_text), latency_ms=latency_ms,
+            model=model,
         )
-
         return AskResponse(
-            request_id=request_id,
-            query=result["query"],
-            mode=result["mode"],
-            lang=result["lang"],
-            answer=result["answer"],
-            latency_ms=latency_ms,
+            request_id=request_id, query=req.query,
+            mode=mode, lang=retrieval_lang,
+            answer=answer_text, latency_ms=latency_ms,
         )
 
     except Exception as exc:
@@ -292,15 +378,10 @@ async def ask(req: AskRequest):
         error_text = str(exc)[:500]
         logger.exception("Error in /api/ask [%s]: %s", request_id, error_text)
         _log_query(
-            request_id=request_id,
-            query=req.query,
-            lang=None,
-            mode=None,
-            chunks_used=None,
-            answer_len=None,
-            latency_ms=latency_ms,
-            model=get_model_name(),
-            error=error_text,
+            request_id=request_id, query=req.query,
+            lang=None, mode=None, chunks_used=None,
+            answer_len=None, latency_ms=latency_ms,
+            model=get_model_name(), error=error_text,
         )
         return JSONResponse(
             status_code=500,
