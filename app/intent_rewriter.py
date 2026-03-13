@@ -15,9 +15,10 @@ This adds ~0.5-1s latency but dramatically improves quality for:
 
 import json
 import logging
+import os
 from typing import Any
 
-from app.answer_runner import get_client, get_model_name
+from openai import OpenAI
 
 logger = logging.getLogger("constitution_rag")
 
@@ -74,8 +75,12 @@ def rewrite_query(
         needs_retrieval: bool
         note: str
     """
-    client = get_client()
-    model = get_model_name()
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+    base_url = os.getenv("OPENAI_BASE_URL")
+    client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+    model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
     # Build messages: system + last few history turns + current query
     messages = [{"role": "system", "content": REWRITER_SYSTEM_PROMPT}]
