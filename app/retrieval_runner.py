@@ -225,6 +225,15 @@ def normalize_query(query: str) -> str:
 
         "действующая конституция 1995 года": "1995 конституция",
         "конституция 1995 года": "1995 конституция",
+
+        # Common typos
+        "конститу": "конституция",
+        "конституци": "конституция",
+        "стаатьи": "статьи",
+        "стаатей": "статей",
+        "призидент": "президент",
+        "презедент": "президент",
+        "констиуция": "конституция",
     }
 
     for src, dst in replacements.items():
@@ -344,6 +353,12 @@ def canonical_topics(query: str) -> set[str]:
     if "изменения" in q or "новая конституция" in q or "новеллы" in q:
         topics.add("изменения")
 
+    if "конституци" in q or "конституц" in q or "конститу" in q:
+        topics.add("конституция")
+
+    if "стать" in q or "статей" in q or "статьи" in q:
+        topics.add("статьи")
+
     return topics
 
 
@@ -373,6 +388,14 @@ def classify_query(query: str) -> str:
         return "explanation"
 
     if any(x in q for x in ["что изменилось", "изменения", "новая конституция", "новеллы"]):
+        return "explanation"
+
+    # "расскажи про X" with a topic → explanation
+    if re.match(r"расскажи\b", q) and len(q.split()) > 1:
+        return "explanation"
+
+    # "какие новые статьи" / "новые нормы" → explanation about changes
+    if "нов" in q and ("стать" in q or "норм" in q or "положен" in q):
         return "explanation"
 
     if is_mixed_topic_query(q):
@@ -784,6 +807,17 @@ def retrieve_ordinary(query: str, ld: dict = None):
         faq_rows = retrieve_fts(q, faq_extra_key, limit=3)
     if faq_rows:
         return faq_rows
+
+    # Last resort: trigram similarity (handles typos and fuzzy queries)
+    trgm_rows = retrieve_trgm(q, ld["norm"], limit=3)
+    if trgm_rows and trgm_rows[0].get("sim", 0) > 0.15:
+        return _enrich_with_faq_extra(trgm_rows, q, ld)
+
+    # Try trgm on faq_extra too
+    faq_extra_key = ld.get("faq_extra", ld["faq"])
+    trgm_faq = retrieve_trgm(q, faq_extra_key, limit=3)
+    if trgm_faq and trgm_faq[0].get("sim", 0) > 0.15:
+        return trgm_faq
 
     return []
 
