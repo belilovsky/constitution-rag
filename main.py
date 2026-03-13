@@ -33,6 +33,7 @@ from app.answer_runner import (
 )
 from app.retrieval_runner import run_retrieval
 from app.db import get_conn, put_conn, fetch_all
+from app.faq_match import faq_lookup
 
 logger = logging.getLogger("constitution_rag")
 
@@ -228,6 +229,30 @@ async def ask(req: AskRequest):
     error_text = None
 
     try:
+        # FAQ cache: instant response for common questions
+        if not req.history:
+            cached = faq_lookup(req.query)
+            if cached:
+                latency_ms = int((time.time() - t0) * 1000)
+                _log_query(
+                    request_id=request_id,
+                    query=req.query,
+                    lang="ru",
+                    mode=f"faq_cache({cached['score']})",
+                    chunks_used=0,
+                    answer_len=len(cached["answer"]),
+                    latency_ms=latency_ms,
+                    model="cache",
+                )
+                return AskResponse(
+                    request_id=request_id,
+                    query=req.query,
+                    mode=cached["mode"],
+                    lang="ru",
+                    answer=cached["answer"],
+                    latency_ms=latency_ms,
+                )
+
         history_msgs = _trim_history(req.history)
         result = await asyncio.to_thread(
             generate_answer, req.query, history_msgs
@@ -292,6 +317,29 @@ async def ask_stream(req: AskRequest):
             payload = await asyncio.to_thread(run_retrieval, req.query)
             lang = payload.get("lang", "ru")
             mode = payload.get("mode", "unknown")
+
+            # FAQ cache: instant response (only for first message, no history)
+            if not req.history:
+                cached = faq_lookup(req.query)
+                if cached:
+                    meta = {"request_id": request_id, "mode": cached["mode"], "lang": "ru"}
+                    yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
+                    chunk_data = json.dumps({"text": cached["answer"]}, ensure_ascii=False)
+                    yield f"event: text\ndata: {chunk_data}\n\n"
+                    latency_ms = int((time.time() - t0) * 1000)
+                    done = {"request_id": request_id, "latency_ms": latency_ms}
+                    yield f"event: done\ndata: {json.dumps(done)}\n\n"
+                    _log_query(
+                        request_id=request_id,
+                        query=req.query,
+                        lang="ru",
+                        mode=f"faq_cache({cached['score']})",
+                        chunks_used=0,
+                        answer_len=len(cached["answer"]),
+                        latency_ms=latency_ms,
+                        model="cache",
+                    )
+                    return
 
             # Send metadata event
             meta = {"request_id": request_id, "mode": mode, "lang": lang}
