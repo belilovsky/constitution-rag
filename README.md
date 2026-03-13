@@ -222,7 +222,10 @@ Release gate закрыт (30/30, 2026-03-13). Приоритетные напр
 | full30_S3_20260313_0831.md | gpt-4o-mini | 29/30 | Pre-DB expansion |
 | full30_S3_20260313_0837.md | gpt-4.1-mini | 30/30 | Pre-DB expansion |
 | full30_S3_20260313_0840.md | gpt-4.1 | 9/30 | Rate limited |
-| full30_S3_20260313_0917.md | gpt-4.1-mini | 30/30 | Expanded DB (15 sets, 1105 chunks) — canonical |
+| full30_S3_20260313_0917.md | gpt-4.1-mini | 30/30 | Expanded DB — initial GO |
+| full30_S3_20260313_1000.md | gpt-4.1-mini | 30/30 | Post batch-1: prompt v3 |
+| full30_S3_20260313_1120.md | gpt-4.1-mini | 29/30 | Batch-1 deploy, RT-22 warn |
+| full30_S3_20260313_1134.md | gpt-4.1-mini | 30/30 | **Batch-2 clean pass** (127.3s) |
 
 ---
 
@@ -263,4 +266,7 @@ Release gate закрыт (30/30, 2026-03-13). Приоритетные напр
 1. Подтвердить доступ к VPS / GitHub.
 2. `git log --oneline -5` — подтвердить текущий коммит.
 3. Проверить release status в этом README.
-4. Решить направление следующей фазы.
+4. Проверить контейнеры: `docker ps --format 'table {{.Names}}\t{{.Status}}'`
+5. Проверить БД: `ss -tlnp | grep 55432`
+6. Проверить API: `curl http://localhost:8000/health`
+7. Решить направление следующей фазы.
