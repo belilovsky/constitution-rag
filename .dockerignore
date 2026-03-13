@@ -1,0 +1,20 @@
+# Docker build context: exclude heavy/unnecessary files
+.venv/
+.git/
+raw/
+normalized/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+*.log
+tmp/
+qa/evidence/
+manifests/
+scripts/
+importers/
+sql/
+
+# Keep: app/, main.py, requirements.txt, Dockerfile,
+#       docs/system_prompt_canonical_v1.md (loaded at runtime),
+#       static/index.html (frontend)
