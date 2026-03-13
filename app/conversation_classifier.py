@@ -17,6 +17,38 @@ _GREETING_PATTERNS = [
     r"^\s*(привет\w*|здравствуй\w*|приветик\w*|хай|хеллоу?|добрый\s*(день|утро|вечер)|доброе\s*утро|салам\w*|сәлем\w*|hello|hi|hey)\s*[!.?]*\s*$",
 ]
 
+# Smalltalk that should get a friendly response without retrieval
+_SMALLTALK_PATTERNS = [
+    r"^\s*(как\s+(у тебя\s+)?дела|как\s+жизнь|как\s+поживаешь|как\s+ты|как\s+сам)\s*[!.?]*\s*$",
+    r"^\s*(спасибо|благодар\w+|thank\w*|рахмет\w*)\s*[!.?]*\s*$",
+    r"^\s*(пока|до\s*свидания|bye|прощай|увидимся|бай)\s*[!.?]*\s*$",
+    r"^\s*(ок|окей|okay|ладно|понятно|ясно|хорошо|класс|круто|отлично|супер)\s*[!.?]*\s*$",
+    r"^\s*(да|нет|не|ага|угу|неа)\s*[!.?]*\s*$",
+]
+
+SMALLTALK_RESPONSES = {
+    "greeting_back": {
+        "ru": "У меня всё отлично, спасибо! Готов помочь с вопросами по Конституции. Что интересует?",
+        "kz": "Бәрі жақсы, рахмет! Конституция бойынша сұрақтарға көмектесуге дайынмын. Не қызықтырады?",
+        "en": "I'm doing great, thanks! Ready to help with Constitution questions. What interests you?",
+    },
+    "thanks": {
+        "ru": "Пожалуйста! Если есть ещё вопросы по Конституции — спрашивай.",
+        "kz": "Оқасы жоқ! Конституция бойынша сұрақтар болса — сұраңыз.",
+        "en": "You're welcome! Feel free to ask more about the Constitution.",
+    },
+    "bye": {
+        "ru": "До встречи! Если появятся вопросы по Конституции — возвращайся.",
+        "kz": "Сау болыңыз! Конституция бойынша сұрақтар болса — қайта оралыңыз.",
+        "en": "Goodbye! Come back if you have more Constitution questions.",
+    },
+    "acknowledgment": {
+        "ru": "Хорошо! Если хочешь узнать что-то по Конституции — спрашивай.",
+        "kz": "Жақсы! Конституция бойынша білгің келсе — сұра.",
+        "en": "Got it! Feel free to ask about the Constitution.",
+    },
+}
+
 _META_PATTERNS = [
     # "что ты можешь / умеешь / знаешь / делаешь"
     r"(что\s+(ты\s+)?(можешь|умеешь|знаешь|делаешь))",
@@ -148,14 +180,27 @@ def _has_constitution_topic(query_lower: str) -> bool:
     return False
 
 
+def _detect_smalltalk_type(q_lower: str) -> str | None:
+    """Detect specific smalltalk sub-type for appropriate response."""
+    if re.match(r"^\s*(как\s+(у тебя\s+)?дела|как\s+жизнь|как\s+поживаешь|как\s+ты|как\s+сам)\s*[!.?]*\s*$", q_lower):
+        return "greeting_back"
+    if re.match(r"^\s*(спасибо|благодар\w+|thank\w*|рахмет\w*)\s*[!.?]*\s*$", q_lower):
+        return "thanks"
+    if re.match(r"^\s*(пока|до\s*свидания|bye|прощай|увидимся|бай|goodbye)\s*[!.?]*\s*$", q_lower):
+        return "bye"
+    if re.match(r"^\s*(ок|окей|okay|ладно|понятно|ясно|хорошо|класс|круто|отлично|супер|да|ага|угу)\s*[!.?]*\s*$", q_lower):
+        return "acknowledgment"
+    return None
+
+
 def classify_conversational(query: str, lang: str = "ru") -> tuple[str | None, str | None]:
     """
-    Classify query as conversational (greeting/meta/followup) or normal.
+    Classify query as conversational (greeting/smalltalk/meta/followup) or normal.
 
     Returns:
         (category, response_or_none)
-        category: "greeting" | "meta" | "followup" | None
-        response_or_none: pre-built response for greetings, None otherwise
+        category: "greeting" | "smalltalk" | "meta" | "followup" | None
+        response_or_none: pre-built response for greetings/smalltalk, None otherwise
     """
     q = query.strip()
     q_lower = q.lower().replace("ё", "е")
@@ -165,22 +210,25 @@ def classify_conversational(query: str, lang: str = "ru") -> tuple[str | None, s
         if re.match(pattern, q_lower, re.IGNORECASE):
             return ("greeting", GREETING_RESPONSES.get(lang, GREETING_RESPONSES["ru"]))
 
-    # 2. Followup detection (must be before meta to catch "расскажи" without topic)
+    # 2. Smalltalk detection (как дела, спасибо, пока, ок)
+    smalltalk_type = _detect_smalltalk_type(q_lower)
+    if smalltalk_type:
+        responses = SMALLTALK_RESPONSES.get(smalltalk_type, SMALLTALK_RESPONSES["acknowledgment"])
+        return ("smalltalk", responses.get(lang, responses["ru"]))
+
+    # 3. Followup detection (must be before meta to catch "расскажи" without topic)
     for pattern in _FOLLOWUP_PATTERNS:
         if re.match(pattern, q_lower, re.IGNORECASE):
             return ("followup", None)
 
-    # 3. Meta-question detection (explicit patterns)
+    # 4. Meta-question detection (explicit patterns)
     for pattern in _META_PATTERNS:
         if re.search(pattern, q_lower, re.IGNORECASE):
             return ("meta", None)
 
-    # 4. Short vague queries with no constitution topic → treat as meta
-    #    Catches things like "а что у тебя етсь?", "ну и?", etc.
+    # 5. Short vague queries with no constitution topic → treat as meta
     words = q_lower.split()
     if len(words) <= _SHORT_VAGUE_MAX_WORDS and not _has_constitution_topic(q_lower):
-        # Only if it doesn't look like a factual question with substance
-        # Check if it's addressing the bot (mentions "ты", "тебя", "тебе", "у тебя")
         bot_markers = ["ты", "тебя", "тебе", "теб", "себя", "себе"]
         if any(m in q_lower for m in bot_markers):
             return ("meta", None)
