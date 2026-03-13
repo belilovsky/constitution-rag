@@ -10,6 +10,7 @@ from app.conversation_classifier import (
     META_SYSTEM_ADDENDUM,
     FOLLOWUP_SYSTEM_ADDENDUM,
 )
+from app.intent_rewriter import rewrite_query
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -201,21 +202,20 @@ def generate_answer(
     # ── Conversational routing: greetings, meta, followup ──
     conv_type, conv_response = classify_conversational(query, lang)
 
-    if conv_type == "greeting":
+    if conv_type in ("greeting", "smalltalk"):
         # Instant response, no LLM needed
         return {
             "query": query,
-            "mode": "greeting",
+            "mode": conv_type,
             "lang": lang,
             "answer": conv_response,
             "retrieval": {},
         }
 
-    if conv_type in ("meta", "followup"):
+    if conv_type == "meta":
         # Let LLM answer with special addendum, no retrieval
         system_prompt = load_system_prompt()
-        addendum = META_SYSTEM_ADDENDUM if conv_type == "meta" else FOLLOWUP_SYSTEM_ADDENDUM
-        system_prompt += addendum
+        system_prompt += META_SYSTEM_ADDENDUM
 
         client = get_client()
         model = get_model_name()
@@ -239,16 +239,52 @@ def generate_answer(
 
         return {
             "query": query,
-            "mode": conv_type,
+            "mode": "meta",
             "lang": lang,
             "answer": answer_text,
             "retrieval": {},
         }
 
-    # ── Normal retrieval path ──
-    payload = run_retrieval(query)
+    # ── Intent rewriter: uses history to produce a clear retrieval query ──
+    intent_result = rewrite_query(query, history)
+    rewritten = intent_result["rewritten_query"]
+    intent = intent_result["intent"]
+
+    # If rewriter says no retrieval needed (smalltalk/meta detected by LLM)
+    if not intent_result["needs_retrieval"]:
+        if intent == "smalltalk":
+            # LLM-detected smalltalk that classifier missed
+            system_prompt = load_system_prompt()
+            system_prompt += META_SYSTEM_ADDENDUM
+
+            client = get_client()
+            model = get_model_name()
+            messages = [{"role": "system", "content": system_prompt}]
+            if history:
+                messages.extend(history)
+            messages.append({"role": "user", "content": query})
+
+            response = client.responses.create(
+                model=model, input=messages, temperature=0.3,
+            )
+            answer_text = (response.output_text or "").strip()
+            if not answer_text:
+                answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
+
+            return {
+                "query": query,
+                "mode": "smalltalk",
+                "lang": lang,
+                "answer": answer_text,
+                "retrieval": {},
+            }
+
+    # ── Normal retrieval path (using rewritten query) ──
+    payload = run_retrieval(rewritten)
 
     system_prompt = load_system_prompt()
+    # Build user prompt with REWRITTEN query for retrieval context,
+    # but include original query so LLM sees what user actually asked
     user_prompt = build_user_prompt(query, payload)
 
     client = get_client()
@@ -278,4 +314,6 @@ def generate_answer(
         "lang": payload.get("lang", "ru"),
         "answer": answer_text,
         "retrieval": payload,
+        "rewritten_query": rewritten,
+        "intent": intent,
     }
