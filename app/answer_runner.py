@@ -27,17 +27,17 @@ SAFE_FAILURE_TEXT = {
 
 USER_PROMPT_TEMPLATE = {
     "ru": (
-        "Ниже дан вопрос пользователя и retrieved context из базы знаний проекта constitution-rag.\n"
+        "Ниже дан вопрос пользователя и найденные материалы по проекту constitution-rag.\n"
         "Отвечай только по найденным материалам. Не добавляй сведения от себя. "
         "Если данных недостаточно, скажи об этом прямо и кратко.\n\n"
     ),
     "kz": (
-        "Төменде пайдаланушы сұрағы және constitution-rag жобасының білім базасынан алынған контекст берілген.\n"
+        "Төменде пайдаланушы сұрағы және constitution-rag жобасының материалдары берілген.\n"
         "Тек табылған материалдар бойынша жауап бер. Өзіңнен мәлімет қоспа. "
         "Деректер жеткіліксіз болса, тікелей және қысқаша айт.\n\n"
     ),
     "en": (
-        "Below is the user's question and retrieved context from the constitution-rag knowledge base.\n"
+        "Below is the user's question and retrieved materials from the constitution-rag project.\n"
         "Answer only based on the retrieved materials. Do not add information on your own. "
         "If data is insufficient, say so directly and briefly.\n\n"
     ),

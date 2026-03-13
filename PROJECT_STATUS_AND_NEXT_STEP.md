@@ -1,6 +1,6 @@
 # PROJECT STATUS AND NEXT STEP — constitution-rag
 
-Last updated: 2026-03-13
+Last updated: 2026-03-13 (batch-2 fixes applied)
 
 ## 1. Project position
 
@@ -12,6 +12,7 @@ Ingestion, normalization, import в PostgreSQL и retrieval routing в этом 
 - data-layer закрыт (15 наборов, 1105 чанков);
 - retrieval-layer в рабочем состоянии (hotfix 56ea43a);
 - prompt / answer-layer QA завершён (full30 30/30);
+- prompt v3 — batch-1 + batch-2 fixes applied (e1fb028, batch-2 commit);
 - release status: **GO** (2026-03-13);
 - модель production: **gpt-4.1-mini**.
 
@@ -165,6 +166,22 @@ Workaround:
 - [x] follow-up pressure cases;
 - [x] status labeling для project / transitional / deprecated контекста;
 - [x] comparison behavior.
+
+### Applied fixes (2026-03-13, batch-1 + batch-2)
+
+Batch-1 (commit e1fb028):
+- §8: добавлены «широкие полномочия» и «обширные полномочия» в бан-лист (RT-15 fix)
+- §6.1.B: few-shot negative example для «Таким образом»
+- answer_runner.py: SAFE_FAILURE_TEXT заменён на формулы §6.1.D (ru/kz/en)
+- run_full30.py: добавлены blocker signals + _is_negative_context() для RT-20 false positive
+
+Batch-2:
+- §13: few-shot пример anti-false-completeness, запрет «Это основные...» без оговорки
+- §6.1.B: добавлен запрет «Если нужна информация о других правах...»
+- §6.1.D: добавлен Тип F — hedge-формулы для перечислений 3+ норм
+- §8: добавлены «существенные полномочия», «исключительные полномочия»
+- run_full30.py: добавлены false_completeness сигналы («это основные», «это ключевые») + negative context для hedge-оговорок
+- answer_runner.py: убрана «база знаний» из USER_PROMPT_TEMPLATE (ru/kz/en)
 
 ---
 
@@ -324,7 +341,9 @@ internal/ материалы классифицированы как **restricte
 - 2026-03-12: NO-GO (top-10 и full30 QA не завершены)
 - 2026-03-13: **GO** (full30 30/30 pass, 0 open P0, 0 open P1)
 
-Evidence: `qa/evidence/full30_S3_20260313_0917.md`
+Evidence: `qa/evidence/full30_S3_20260313_0917.md` (initial GO)
+Latest evidence: `qa/evidence/full30_S3_20260313_1120.md` (post batch-1: 29/30, RT-22 warn)
+Pending: batch-2 regression run
 
 ---
 
