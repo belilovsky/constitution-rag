@@ -2,12 +2,33 @@
 
 `constitution-rag` — это рабочий репозиторий проекта grounded чат-бота по конституционным материалам Республики Казахстан.
 
-Проект не сводится к ingestion или ETL. Ingestion, normalization, import в PostgreSQL и retrieval routing здесь являются подготовительным слоем для chatbot-контура, который должен отвечать по найденным конституционным материалам, а не по “памяти модели”.
+Проект не сводится к ingestion или ETL. Ingestion, normalization, import в PostgreSQL и retrieval routing здесь являются подготовительным слоем для chatbot-контура, который должен отвечать по найденным конституционным материалам, а не по "памяти модели".
 
-На текущий момент:
-- data-layer завершён;
-- retrieval hotfix закреплён в `origin/main`;
-- следующий этап — prompt / answer behavior QA и red-team проверка всего chatbot-layer.
+---
+
+## Текущий статус: GO
+
+**Release gate: GO** — все P0 blockers закрыты, P1 RT-20 (neutrality drift) закрыт.
+
+### Пройденные этапы
+
+| Этап | Статус | Evidence |
+|------|--------|----------|
+| Data ingestion (extraction, normalization, import, SQL QA, empty_body=0) | done | — |
+| Retrieval hotfix (topical routing, source-priority) | done | commit 56ea43a |
+| System prompt canonical v1 (4 P0 fixes) | done | system_prompt_canonical_v1.md |
+| answer_runner.py FIX-3 RT-30 (empty-retrieval shortcut removed) | done | commit fda0d68 |
+| Top-10 critical QA: 10/10 pass | done | qa/evidence/top10_S3_20260312_2203.md |
+| Full 30-test red-team QA: 29/30 auto-pass, 1 P1 | done | qa/evidence/full30_S3_20260312_2223.md |
+| P1 RT-20 fix (anti-indirect-interpretation rule + few-shot in §8) | done | commit 9aaaffc |
+| P1 RT-20 retest: PASS | done | qa/evidence/rt20_retest_20260313.md |
+
+### QA summary
+
+- **Top-10 critical**: 10/10 pass
+- **Full 30 red-team**: 30/30 pass (29 auto-pass + 1 retest pass)
+- **Open P0**: 0
+- **Open P1**: 0
 
 ---
 
@@ -20,37 +41,6 @@
 `raw source files -> normalized data -> PostgreSQL import -> retrieval layer -> grounded chatbot answers`
 
 Это означает, что PostgreSQL, import scripts и retrieval routing — не конечный продукт, а опорный слой для answer-layer и прикладочного поведения чат-бота.
-
----
-
-## Текущий статус
-
-На текущий момент завершены:
-
-1. inventory исходных документов;
-2. extraction / normalization;
-3. импорт нормализованных данных в PostgreSQL;
-4. SQL QA по импортированным данным;
-5. фиксация data-layer исправлений в Git;
-6. retrieval hotfix по topical routing и query normalization;
-7. post-sync runtime проверка на VPS.
-
-Зафиксированные коммиты:
-
-- `c020220` — `Fix FAQ import fallback to question and answer body`
-- `56ea43a` — `Update retrieval_runner.py`
-
-Что подтверждено по факту:
-
-- все 8 документных наборов импортированы;
-- по всем импортированным документам `empty_body = 0`;
-- retrieval для `свобода слова` теперь выводит статью 23;
-- retrieval для `мирные собрания` выводит статью 34;
-- broad overview по политическим правам возвращает статьи 23, 26, 34 и 35;
-- historical / comparison режимы сохраняют разделение между `2026 norm` и `1995 deprecated`;
-- weak-tech queries не компенсируются выдуманным ответом.
-
-Важно: рабочий retrieval после hotfix ещё не означает production-ready chatbot behavior. Текущий release gate теперь находится на уровне prompt / answer-layer QA.
 
 ---
 
@@ -112,9 +102,37 @@
 - no false completeness
 - no commentary-as-norm substitution
 - neutral handling of political framing
+- anti-indirect-interpretation (few-shot hardened)
 - no hidden-rules leakage
 
-Сейчас первый слой завершён, второй находится в рабочем состоянии после retrieval hotfix, а третий является следующим основным этапом.
+Все три слоя завершены и прошли QA.
+
+---
+
+## Ключевые файлы
+
+| Файл | Назначение |
+|------|-----------|
+| `app/answer_runner.py` | Entry point: generate_answer, flatten_payload |
+| `app/retrieval_runner.py` | Retrieval routing и query classification |
+| `docs/system_prompt_canonical_v1.md` | Канонический system prompt (18 секций) |
+| `docs/retrieval_policy_v1.md` | Retrieval routing и source-priority policy |
+| `qa/run_top10.py` | Top-10 critical QA run script |
+| `qa/run_full30.py` | Full 30-test red-team QA run script |
+| `qa/evidence/` | Все QA evidence файлы |
+
+---
+
+## Канонические документы
+
+Source of truth для текущего chatbot-layer:
+
+- `system_prompt_canonical_v1.md` — канонические правила answer behavior;
+- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
+- `red_team_hostile_25.md` — тестовый пакет и rubric;
+- `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
+
+Если между рабочими обсуждениями, временными заметками и этими файлами есть расхождение, приоритет имеют канонические документы в репозитории.
 
 ---
 
@@ -122,31 +140,42 @@
 
 ### FAQ import fix
 
-Во время QA был найден дефект импорта FAQ.
+Часть FAQ-чанков в normalized JSON хранила содержимое не в `text`, а в полях `question` и `answer`, из-за чего при импорте `body` мог оставаться пустым. Исправлено: importer берёт fallback из `question + answer`.
 
-Часть FAQ-чанков в normalized JSON хранила содержимое не в `text`, а в полях `question` и `answer`, из-за чего при импорте `body` мог оставаться пустым.
+### Retrieval routing hotfix (56ea43a)
 
-Исправление:
+Запрос про `свободу слова` уходил в общие статьи вместо статьи 23. Исправлено: расширена нормализация, topical shortcut поднят выше обзорных fallback-веток.
 
-- importer сначала берёт `text`;
-- если `text` пустой, но есть `question` и / или `answer`, `body` собирается как `question + "\n\n" + answer`;
-- `heading` может брать fallback из `question`.
+### System prompt P0 fixes
 
-После этого FAQ были переимпортированы и успешно проверены SQL-выборками.
+4 P0-фикса в system prompt canonical v1:
+- RT-03: false completeness
+- RT-05: effective_date
+- RT-08: 1995 leakage
+- RT-15: political framing
 
-### Retrieval routing hotfix
+### answer_runner.py FIX-3 (fda0d68)
 
-Во время retrieval QA был подтверждён дефект topical routing:
+RT-30: убран empty-retrieval shortcut, LLM вызывается всегда для safe failure и meta-question handling.
 
-- запрос про `свободу слова` уходил в общие статьи о правах вместо статьи 23.
+### P1 RT-20 neutrality drift fix (9aaaffc)
 
-Исправление:
+Бот подыгрывал навязанной политической рамке через косвенные формулы («может свидетельствовать о значительных полномочиях»). Исправлено:
+- запрет косвенно-оценочных формул (квалификатор + оценочное существительное);
+- правило anti-indirect-interpretation;
+- few-shot пример правильной реакции на навязывание ярлыка.
 
-- расширена нормализация пользовательских формулировок;
-- добавлены устойчивые формы для `о свободе слова`, `свободе слова`, `о праве на мирные собрания`;
-- topical shortcut в broad-routing поднят выше обзорных fallback-веток.
+---
 
-После этого fix был закоммичен, запушен и подтверждён на VPS после `git reset --hard origin/main`.
+## Следующая фаза
+
+Prompt / answer QA завершён. Возможные направления:
+
+1. **Prompt design** — расширение prompt для edge cases
+2. **Chatbot behavior QA** — расширенный тестовый пакет
+3. **Semantic cache** — кэширование embeddings для ускорения
+4. **Production deployment** — Docker, API endpoint, frontend
+5. **Knowledge base expansion** — дополнительные документы
 
 ---
 
@@ -172,188 +201,19 @@
 - `meta`
 - `created_at`
 
-Практический смысл:
-
-- каждый исходный документ разбивается на набор структурных чанков;
-- каждый чанк имеет текст и метаданные;
-- retrieval и answer-layer должны опираться именно на этот слой, а не на сырые файлы напрямую.
-
 ---
-
-## Канонические документы
-
-Source of truth для текущего chatbot-layer:
-
-- `PROJECT_STATUS_AND_NEXT_STEP.md`
-- `README.md`
-- `system_prompt_canonical_v1.md`
-- `retrieval_policy_v1.md`
-- `red_team_hostile_25.md`
-- `qa_results_template.md`
-
-Роль документов:
-
-- `PROJECT_STATUS_AND_NEXT_STEP.md` — текущая стадия, release gate, known issues, next actions;
-- `README.md` — общий вход в проект и project memory верхнего уровня;
-- `system_prompt_canonical_v1.md` — канонические правила answer behavior;
-- `retrieval_policy_v1.md` — канонические правила retrieval routing и source-priority;
-- `red_team_hostile_25.md` — тестовый пакет и rubric;
-- `qa_results_template.md` — канонический шаблон QA-run, blocker register, fix plan и retest log.
-
-Если между рабочими обсуждениями, временными заметками и этими файлами есть расхождение, приоритет имеют канонические документы в репозитории.
-
----
-
-## Known issues и риски
-
-Технический известный issue:
-
-- для некоторых ad-hoc SQL preview через `left()` / `substring()` возможна UTF-8 ошибка.
-
-Workaround:
-
-- читать полный `body`;
-- обрезать preview уже в Python.
-
-Открытые risk areas текущего этапа:
-
-- false completeness на broad queries;
-- commentary / FAQ substitution вместо norm;
-- leakage из `1995 deprecated` в ordinary mode;
-- political framing и pressure cases;
-- meta-leakage внутренних правил;
-- overly confident answer при weak retrieval;
-- mixed-topic и structural-context edge cases;
-- exact lookup, где модель может подменить нужную норму соседним фрагментом;
-- status labeling для project / transitional / deprecated контекста.
-
----
-
-## Дополнительные документы
-
-Дополнительные документы, связанные с operational / campaign / штабной работой, не должны автоматически попадать в обычный пользовательский retrieval.
-
-Перед импортом новых материалов обязателен порядок:
-
-1. inventory;
-2. классификация;
-3. canonical file selection;
-4. extraction / normalization;
-5. deduplication;
-6. решение: commentary-layer или internal-only;
-7. import;
-8. SQL QA;
-9. retrieval QA;
-10. только после этого допуск в chatbot-контур.
-
-Критические правила:
-
-- новые документы не должны загрязнять `norm`-слой;
-- internal / штабные материалы не должны случайно попасть в production retrieval;
-- commentary-ready документы не должны автоматически трактоваться как norm.
-
----
-
-## QA и release gate
-
-Следующий обязательный этап проекта:
-
-1. прогнать top-10 critical cases из `red_team_hostile_25.md`;
-2. сохранить QA-лог через `qa_results_template.md`;
-3. собрать blocker register;
-4. зафиксировать fix plan;
-5. исправить prompt / answer behavior по результатам;
-6. сделать retest;
-7. только после этого переходить к full QA run;
-8. только после закрытия P0 решать вопрос о возврате к импорту дополнительных документов.
-
-Иными словами, следующий фокус проекта — не ingestion, а поведение чат-бота:
-- как он держит source-priority;
-- не обещает ли полноту;
-- не подменяет ли норму commentary;
-- не смешивает ли 1995 и 2026;
-- не поддаётся ли политическому фреймингу;
-- безопасно ли ведёт себя при слабом retrieval.
-
-Текущий chatbot-layer нельзя считать production-ready, пока не закрыты P0 blocker’ы:
-
-- false completeness;
-- `1995 deprecated` leakage;
-- commentary / FAQ substitution вместо norm;
-- hallucination при weak retrieval;
-- принятие политического ярлыка как факта;
-- раскрытие hidden instructions / red-team logic.
-
-Если хотя бы один из этих blocker’ов открыт, release status = `NO-GO`.
-
----
----
-
-## Comparative QA pack prepared on 2026-03-13
-
-Для comparative top-10 critical run подготовлен отдельный operational пакет артефактов:
-
-- `QUESTION_SET_top10_v1.md`
-- `SCORING_RULES_top10_v1.md`
-- `qa_top10_S1_colleagues_baseline_2026-03-13.md`
-- `qa_top10_S2_colleagues_plus_our_changes_2026-03-13.md`
-- `qa_top10_S3_our_version_2026-03-13.md`
-- `qa_top10_S4_standard_ai_reference_2026-03-13.md`
-- `comparative_matrix_top10_2026-03-13.md`
-- `decision_memo_top10_2026-03-13.md`
-
-Назначение пакета:
-- прогнать единый frozen top-10 question set по 4 системам;
-- фиксировать answer snapshot и retrieval snapshot;
-- оценивать ответы по единой rubric;
-- сравнивать системы не по впечатлению, а по blocker-aware evidence;
-- выбрать не просто “winner”, а `preferred fix target`, если у всех систем останутся P0 blocker’ы.
-
-Важно:
-- один открытый P0 blocker сильнее, чем высокий average score;
-- comparative run не заменяет retest;
-- release status остаётся `NO-GO`, пока не закрыты blocker’ы текущего этапа.
-
----
-
-## Current operational focus
-
-Текущий operational фокус проекта:
-
-1. Работать с VPS через нормальный локальный SSH, а не через browser terminal.
-2. Снять inventory runtime-части repo и текущего chatbot-контура.
-3. Подтвердить минимальный runtime path:
-   `user question -> retrieval -> prompt assembly -> LLM -> answer`.
-4. После этого выполнить top-10 comparative QA run.
-5. Зафиксировать blocker register, fix plan и retest.
-6. Только затем переходить к full hostile run или к расширению knowledge base.
-
----
-
-## Fresh-dialog handoff
-
-Если работа переносится в новый диалог этого Space, стартовая точка должна быть такой:
-
-1. Подтвердить SSH-доступ к VPS из локального терминала.
-2. Показать фактический inventory runtime-части repo:
-   - `git status`
-   - `find . -maxdepth 3 -type f | sort`
-   - `find . -maxdepth 3 -type d | sort`
-   - `find . -maxdepth 4 | grep -E 'app|api|server|main|chat|retrieval|prompt|docker|compose'`
-3. Подтвердить, где именно находится chatbot runtime entrypoint.
-4. Только после этого решать:
-   - чего не хватает для минимального интерфейса;
-   - как подключается LLM;
-   - как прогонять top-10 и сохранять QA evidence.
-
-Этот handoff нужен, чтобы не возвращаться к общим рассуждениям и сразу продолжить operational work по текущему release gate.
-
 
 ## Boundary rule
 
 Пока работа идёт внутри `constitution-rag`, не уходить в соседние проекты, контейнеры и сервисы без прямого сигнала пользователя или прямого runtime-следа из текущей задачи.
 
-Текущий operational приоритет:
-- закрыть prompt / retrieval / answer-layer QA;
-- зафиксировать blocker’ы и retest;
-- только потом расширять knowledge base и возвращаться к новым ingestion-решениям.
+---
+
+## Fresh-dialog handoff
+
+Если работа переносится в новый диалог, стартовая точка:
+
+1. Подтвердить доступ к VPS / GitHub.
+2. `git log --oneline -5` — подтвердить текущий коммит.
+3. Проверить release status в этом README.
+4. Решить направление следующей фазы.
