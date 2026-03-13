@@ -12,16 +12,16 @@ SYSTEM_PROMPT_PATH = BASE_DIR / "docs" / "system_prompt_canonical_v1.md"
 
 SAFE_FAILURE_TEXT = {
     "ru": (
-        "По запросу не найдено релевантных материалов в базе знаний. "
-        "Пожалуйста, уточните статью, тему или формулировку вопроса."
+        "По этой теме в доступных материалах ничего не нашлось. "
+        "Если уточнишь статью или тему — попробую снова."
     ),
     "kz": (
-        "Білім базасында сұрау бойынша тиісті материалдар табылмады. "
-        "Мақаланы, тақырыпты немесе сұрақтың тұжырымдамасын нақтылаңыз."
+        "Бұл тақырып бойынша қол жетімді материалдардан ештеңе табылмады. "
+        "Мақаланы немесе тақырыпты нақтыласаң — қайта іздеймін."
     ),
     "en": (
-        "No relevant materials found in the knowledge base. "
-        "Please specify the article, topic, or rephrase your question."
+        "Nothing came up on this topic in the available materials. "
+        "If you specify an article or topic, I can try again."
     ),
 }
 
