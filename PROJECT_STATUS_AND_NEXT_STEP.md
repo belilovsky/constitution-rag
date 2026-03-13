@@ -1,6 +1,6 @@
 # PROJECT STATUS AND NEXT STEP — constitution-rag
 
-Last updated: 2026-03-13 (batch-2 fixes applied)
+Last updated: 2026-03-13 (batch-3 production-readiness)
 
 ## 1. Project position
 
@@ -12,7 +12,8 @@ Ingestion, normalization, import в PostgreSQL и retrieval routing в этом 
 - data-layer закрыт (15 наборов, 1105 чанков);
 - retrieval-layer в рабочем состоянии (hotfix 56ea43a);
 - prompt / answer-layer QA завершён (full30 30/30);
-- prompt v3 — batch-1 + batch-2 fixes applied (e1fb028, batch-2 commit);
+- prompt v3 — batch-1 + batch-2 fixes applied (e1fb028, e050cd1);
+- batch-3: Docker + FastAPI + streaming API + frontend + kz/en tests (9667ab2);
 - release status: **GO** (2026-03-13);
 - модель production: **gpt-4.1-mini**.
 
@@ -175,13 +176,21 @@ Batch-1 (commit e1fb028):
 - answer_runner.py: SAFE_FAILURE_TEXT заменён на формулы §6.1.D (ru/kz/en)
 - run_full30.py: добавлены blocker signals + _is_negative_context() для RT-20 false positive
 
-Batch-2:
+Batch-2 (commit e050cd1):
 - §13: few-shot пример anti-false-completeness, запрет «Это основные...» без оговорки
 - §6.1.B: добавлен запрет «Если нужна информация о других правах...»
 - §6.1.D: добавлен Тип F — hedge-формулы для перечислений 3+ норм
 - §8: добавлены «существенные полномочия», «исключительные полномочия»
-- run_full30.py: добавлены false_completeness сигналы («это основные», «это ключевые») + negative context для hedge-оговорок
-- answer_runner.py: убрана «база знаний» из USER_PROMPT_TEMPLATE (ru/kz/en)
+- run_full30.py: добавлены false_completeness сигналы + negative context
+- answer_runner.py: убрана «база знаний» из USER_PROMPT_TEMPLATE
+
+Batch-3 (commit 9667ab2):
+- main.py: FastAPI сервер (/health, /api/ask, /api/ask/stream SSE)
+- Dockerfile + docker-compose.yml: мульти-сервис (api + pgvector db)
+- query_log: таблица логирования запросов (авто-создание)
+- static/index.html: веб-интерфейс со streaming (ru/kz/en)
+- run_full30.py: расширен до 45 тестов (kz: RT-31..38, en: RT-39..45)
+- requirements.txt: +fastapi, +uvicorn
 
 ---
 
@@ -298,15 +307,20 @@ internal/ материалы классифицированы как **restricte
 
 ## 11. Immediate next actions (актуально на 2026-03-13)
 
-Все обязательные действия предыдущего этапа выполнены.
+### Выполненные задачи batch-3:
 
-Направления следующей фазы:
+1. **Docker + docker-compose** — Dockerfile, docker-compose.yml (api + pgvector db), healthcheck
+2. **FastAPI сервер** — main.py с /health, /api/ask, /api/ask/stream (SSE)
+3. **Observability** — query_log таблица в PostgreSQL (авто-создание при старте)
+4. **Streaming API** — SSE с OpenAI stream=True, события meta/text/done/error
+5. **Frontend** — static/index.html (ru/kz/en селектор, streaming, мобильный адаптив)
+6. **Тесты kz/en** — run_full30.py расширен до 45 тестов (RT-31..RT-45: 8 kz + 7 en)
 
-1. **Retrieval расширение** — подключить 7 новых датасетов в retrieval routing (DOCS dict, языковой роутинг, comparison mode)
-2. **Retrieval regression QA** — убедиться, что ce_* и faq_extra_* не вносят шум
-3. **Расширение тестового пакета** — новые сценарии под новые слои (сравнение, аудитории, faq_extra, EN)
-4. **Production deployment** — Docker, API endpoint, frontend
-5. **Решение по internal/ материалам** — оперрекомендации + методичка регштабы = restricted, не для импорта
+### Остающиеся задачи:
+
+1. **VPS deploy** — пулл, билд, docker compose up -d, проверка /health
+2. **Regression QA** — прогон run_full30.py (45 тестов) на VPS
+3. **Решение по internal/ материалам** — оперрекомендации + методичка регштабы = restricted, не для импорта
 
 ---
 
@@ -342,8 +356,9 @@ internal/ материалы классифицированы как **restricte
 - 2026-03-13: **GO** (full30 30/30 pass, 0 open P0, 0 open P1)
 
 Evidence: `qa/evidence/full30_S3_20260313_0917.md` (initial GO)
-Latest evidence: `qa/evidence/full30_S3_20260313_1120.md` (post batch-1: 29/30, RT-22 warn)
-Pending: batch-2 regression run
+Batch-1 evidence: `qa/evidence/full30_S3_20260313_1120.md` (29/30, RT-22 warn)
+Batch-2 evidence: `qa/evidence/full30_S3_20260313_1134.md` (30/30 clean pass)
+Batch-3: production deployment files committed (9667ab2)
 
 ---
 
