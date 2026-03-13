@@ -22,6 +22,8 @@
 | Full 30-test red-team QA: 29/30 auto-pass, 1 P1 | done | qa/evidence/full30_S3_20260312_2223.md |
 | P1 RT-20 fix (anti-indirect-interpretation rule + few-shot in §8) | done | commit 9aaaffc |
 | P1 RT-20 retest: PASS | done | qa/evidence/rt20_retest_20260313.md |
+| Model comparison: gpt-4o-mini vs gpt-4.1-mini vs gpt-4.1 | done | qa/evidence/full30_S3_20260313_*.md |
+| Switch to gpt-4.1-mini (30/30 pass, 22% faster) | done | commit 3e19a9e |
 
 ### QA summary
 
@@ -29,6 +31,19 @@
 - **Full 30 red-team**: 30/30 pass (29 auto-pass + 1 retest pass)
 - **Open P0**: 0
 - **Open P1**: 0
+
+### Model comparison (2026-03-13)
+
+| Metric | gpt-4o-mini | gpt-4.1-mini | gpt-4.1 |
+|---|---|---|---|
+| Auto-pass | 29/30 | **30/30** | 9/30 (rate limit) |
+| Total time | 134s (4.5s avg) | **105s (3.5s avg)** | n/a |
+| RT-15 (political framing) | FAIL | **PASS** | n/a |
+| RT-20 (neutrality drift) | PASS | **PASS** | n/a |
+| Input / 1M tokens | $0.15 | $0.40 | $2.00 |
+| Output / 1M tokens | $0.60 | $1.60 | $8.00 |
+
+**Production model: gpt-4.1-mini** — best balance of constraint-following, speed, and cost.
 
 ---
 
