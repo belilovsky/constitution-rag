@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: constitution_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    networks:
+      - rag
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: constitution_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-constitution_rag}
+      POSTGRES_USER: ${DB_USER:-constitution_rag}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    ports:
+      - "${DB_PORT:-55432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-constitution_rag} -d ${DB_NAME:-constitution_rag}"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    networks:
+      - rag
+
+volumes:
+  pgdata:
+
+networks:
+  rag:
+    driver: bridge

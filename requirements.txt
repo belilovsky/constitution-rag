@@ -1,2 +1,4 @@
 openai==1.68.2
 psycopg2-binary==2.9.10
+fastapi[standard]>=0.115
+uvicorn[standard]>=0.32

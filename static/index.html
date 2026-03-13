@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Конституция РК — справочный бот</title>
+  <style>
+    :root {
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --primary: #0057b7;
+      --primary-light: #e8f0fe;
+      --text: #1a1a2e;
+      --text-secondary: #5f6368;
+      --border: #dadce0;
+      --radius: 12px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: var(--shadow);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .logo-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .logo-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .lang-select {
+      display: flex;
+      gap: 4px;
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .lang-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      transition: all 0.2s;
+    }
+
+    .lang-btn.active {
+      background: var(--card);
+      color: var(--primary);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+
+    main {
+      flex: 1;
+      max-width: 800px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      padding-bottom: 16px;
+    }
+
+    .welcome {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .welcome h2 {
+      font-size: 22px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .welcome p {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .msg {
+      max-width: 90%;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      line-height: 1.6;
+      font-size: 15px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: var(--primary);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.bot {
+      align-self: flex-start;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      box-shadow: var(--shadow);
+    }
+
+    .msg.bot .meta {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .msg.bot .meta span {
+      background: var(--bg);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .typing-indicator {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px 0;
+    }
+
+    .typing-indicator span {
+      width: 6px;
+      height: 6px;
+      background: var(--text-secondary);
+      border-radius: 50%;
+      animation: blink 1.4s infinite both;
+    }
+
+    .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes blink {
+      0%, 80%, 100% { opacity: 0.3; }
+      40% { opacity: 1; }
+    }
+
+    .input-area {
+      display: flex;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    #query {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      font-size: 15px;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+      min-height: 48px;
+      max-height: 120px;
+    }
+
+    #query:focus {
+      border-color: var(--primary);
+    }
+
+    #send {
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius);
+      padding: 0 20px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    #send:hover { opacity: 0.9; }
+    #send:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error-toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #d93025;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      z-index: 100;
+      animation: fadeIn 0.3s;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    @media (max-width: 600px) {
+      header { padding: 12px 16px; }
+      .logo-text { font-size: 14px; }
+      .logo-sub { display: none; }
+      main { padding: 16px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">К</div>
+    <div>
+      <div class="logo-text">Конституция РК</div>
+      <div class="logo-sub">Справочный бот по проекту 2026</div>
+    </div>
+  </div>
+  <div class="lang-select">
+    <button class="lang-btn active" data-lang="ru">RU</button>
+    <button class="lang-btn" data-lang="kz">ҚЗ</button>
+    <button class="lang-btn" data-lang="en">EN</button>
+  </div>
+</header>
+
+<main>
+  <div id="chat">
+    <div class="welcome" id="welcome">
+      <h2>Задайте вопрос о проекте Конституции</h2>
+      <p>Бот ответит на основе текста проекта, комментариев и FAQ.<br>
+      Ответы основаны только на найденных материалах.</p>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <textarea id="query" rows="1" placeholder="Ваш вопрос..." autofocus></textarea>
+    <button id="send">Отправить</button>
+  </div>
+</main>
+
+<script>
+const LABELS = {
+  ru: { placeholder: 'Ваш вопрос...', send: 'Отправить', welcome_h: 'Задайте вопрос о проекте Конституции', welcome_p: 'Бот ответит на основе текста проекта, комментариев и FAQ.<br>Ответы основаны только на найденных материалах.' },
+  kz: { placeholder: 'Сұрағыңызды жазыңыз...', send: 'Жіберу', welcome_h: 'Конституция жобасы туралы сұрақ қойыңыз', welcome_p: 'Бот жоба мәтіні, түсініктемелер және FAQ негізінде жауап береді.<br>Жауаптар тек табылған материалдарға негізделген.' },
+  en: { placeholder: 'Your question...', send: 'Send', welcome_h: 'Ask a question about the Constitution', welcome_p: 'The bot answers based on the project text, commentaries, and FAQ.<br>Answers are grounded in retrieved materials only.' },
+};
+
+let currentLang = 'ru';
+let isStreaming = false;
+
+const chat = document.getElementById('chat');
+const query = document.getElementById('query');
+const sendBtn = document.getElementById('send');
+const welcome = document.getElementById('welcome');
+
+// Language selector
+document.querySelectorAll('.lang-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelector('.lang-btn.active').classList.remove('active');
+    btn.classList.add('active');
+    currentLang = btn.dataset.lang;
+    const l = LABELS[currentLang];
+    query.placeholder = l.placeholder;
+    sendBtn.textContent = l.send;
+    if (welcome) {
+      welcome.querySelector('h2').textContent = l.welcome_h;
+      welcome.querySelector('p').innerHTML = l.welcome_p;
+    }
+  });
+});
+
+// Auto-resize textarea
+query.addEventListener('input', () => {
+  query.style.height = 'auto';
+  query.style.height = Math.min(query.scrollHeight, 120) + 'px';
+});
+
+// Send on Enter (Shift+Enter = newline)
+query.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    doSend();
+  }
+});
+
+sendBtn.addEventListener('click', doSend);
+
+function doSend() {
+  const text = query.value.trim();
+  if (!text || isStreaming) return;
+
+  // Remove welcome
+  if (welcome) welcome.remove();
+
+  // User message
+  addMessage(text, 'user');
+  query.value = '';
+  query.style.height = 'auto';
+
+  // Bot placeholder
+  const botEl = addMessage('', 'bot');
+  const typingEl = document.createElement('div');
+  typingEl.className = 'typing-indicator';
+  typingEl.innerHTML = '<span></span><span></span><span></span>';
+  botEl.appendChild(typingEl);
+
+  isStreaming = true;
+  sendBtn.disabled = true;
+
+  streamAnswer(text, botEl, typingEl);
+}
+
+function addMessage(text, role) {
+  const el = document.createElement('div');
+  el.className = `msg ${role}`;
+  if (text) el.textContent = text;
+  chat.appendChild(el);
+  chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+async function streamAnswer(text, botEl, typingEl) {
+  let meta = {};
+  let fullText = '';
+  let latencyMs = 0;
+
+  try {
+    const resp = await fetch('/api/ask/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: text }),
+    });
+
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // keep incomplete line
+
+      let eventType = '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7).trim();
+        } else if (line.startsWith('data: ')) {
+          const data = JSON.parse(line.slice(6));
+
+          if (eventType === 'meta') {
+            meta = data;
+            // Remove typing indicator once we get meta
+          } else if (eventType === 'text') {
+            if (typingEl && typingEl.parentNode) {
+              typingEl.remove();
+            }
+            fullText += data.text;
+            botEl.textContent = fullText;
+            chat.scrollTop = chat.scrollHeight;
+          } else if (eventType === 'done') {
+            latencyMs = data.latency_ms || 0;
+          } else if (eventType === 'error') {
+            throw new Error(data.error || 'Unknown error');
+          }
+        }
+      }
+    }
+
+    // Add metadata footer
+    if (meta.mode || latencyMs) {
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'meta';
+      if (meta.mode) metaDiv.innerHTML += `<span>${meta.mode}</span>`;
+      if (meta.lang) metaDiv.innerHTML += `<span>${meta.lang}</span>`;
+      if (latencyMs) metaDiv.innerHTML += `<span>${(latencyMs/1000).toFixed(1)}s</span>`;
+      botEl.appendChild(metaDiv);
+    }
+
+  } catch (err) {
+    if (typingEl && typingEl.parentNode) typingEl.remove();
+    botEl.textContent = fullText || 'Ошибка соединения. Попробуйте снова.';
+    botEl.style.borderColor = '#d93025';
+
+    const toast = document.createElement('div');
+    toast.className = 'error-toast';
+    toast.textContent = err.message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4000);
+  }
+
+  isStreaming = false;
+  sendBtn.disabled = false;
+  query.focus();
+}
+</script>
+
+</body>
+</html>
