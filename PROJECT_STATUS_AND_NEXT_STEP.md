@@ -1,6 +1,6 @@
 # PROJECT STATUS AND NEXT STEP — constitution-rag
 
-Last updated: 2026-03-12
+Last updated: 2026-03-13
 
 ## 1. Project position
 
@@ -9,9 +9,11 @@ Last updated: 2026-03-12
 Ingestion, normalization, import в PostgreSQL и retrieval routing в этом проекте являются подготовительным слоем для grounded answers, а не конечной целью сами по себе.
 
 На текущий момент:
-- data-layer этап закрыт;
-- retrieval-layer находится в рабочем состоянии после зафиксированного hotfix;
-- проект переходит в стадию prompt / answer-layer QA и системной проверки поведения chatbot-контура.
+- data-layer закрыт (15 наборов, 1105 чанков);
+- retrieval-layer в рабочем состоянии (hotfix 56ea43a);
+- prompt / answer-layer QA завершён (full30 30/30);
+- release status: **GO** (2026-03-13);
+- модель production: **gpt-4.1-mini**.
 
 ---
 
@@ -61,23 +63,36 @@ Ingestion, normalization, import в PostgreSQL и retrieval routing в этом 
 
 ## 4. Database snapshot
 
-В БД находятся 8 документных наборов:
+В БД находятся 15 документных наборов (1105 чанков итого):
 
-- `krk_2026_norm_ru`
-- `krk_2026_norm_kz`
-- `krk_2026_commentary_ru`
-- `krk_2026_commentary_kz`
-- `krk_2026_faq_ru`
-- `krk_2026_faq_kz`
-- `krk_1995_deprecated_ru`
-- `krk_1995_deprecated_kz`
+Базовый слой (8 наборов):
+- `krk_2026_norm_ru` (97)
+- `krk_2026_norm_kz` (97)
+- `krk_2026_commentary_ru` (114)
+- `krk_2026_commentary_kz` (104)
+- `krk_2026_faq_ru` (15)
+- `krk_2026_faq_kz` (15)
+- `krk_1995_deprecated_ru` (103)
+- `krk_1995_deprecated_kz` (100)
+
+Расширенный слой, добавлен 2026-03-13 (7 наборов, 460 чанков):
+- `krk_2026_ce_audiences_ru` (151) — civic-education, целевые аудитории
+- `krk_2026_ce_comparison_ru` (9) — таблица сравнения 1995↔2026
+- `krk_2026_ce_lines_ru` (91) — референдумные линии + контраргументы (RESTRICTED)
+- `krk_2026_ce_theses_ru` (38) — ключевые аспекты + тезисы комиссии
+- `krk_2026_faq_extra_ru` (55) — расширенный FAQ с constitution.my
+- `krk_2026_faq_extra_kz` (63) — расширенный FAQ (казахский)
+- `krk_2026_faq_extra_en` (53) — расширенный FAQ (английский)
 
 Layer semantics:
 
 - `2026 norm` — основной norm-layer проекта;
 - `2026 commentary` — дополнительный разъяснительный слой;
-- `2026 faq` — упрощённый пояснительный слой;
-- `1995 deprecated` — historical/deprecated слой только для сравнения, исторической справки или прямого запроса.
+- `2026 civic-education` — вторичный commentary-sub-layer;
+- `2026 faq` + `faq_extra` — пояснительный слой (расширенный приоритетнее краткого);
+- `comparison-table` — структурированная таблица сравнения, только для comparison-mode;
+- `1995 deprecated` — historical/deprecated слой;
+- `restricted` — `ce_lines_ru` не участвует в ordinary retrieval.
 
 Критическое правило:
 - `1995 deprecated` не должен использоваться как текущая норма по умолчанию.
@@ -136,20 +151,20 @@ Workaround:
 - читать полный `body`;
 - обрезать preview уже в Python.
 
-### Open QA risk areas
+### Closed QA risk areas (закрыто в full30 QA run, 2026-03-13)
 
-После retrieval hotfix всё ещё нужно отдельно проверить и закрыть на уровне answer behavior:
+Все перечисленные риски закрыты в full30_S3_20260313_0917.md (30/30 pass):
 
-- false completeness на broad queries;
-- commentary / FAQ substitution при отсутствии norm;
-- политический framing на чувствительных темах;
-- meta-leakage внутренних правил;
-- overly confident wording при weak / empty retrieval;
-- exact lookup vs structural context cases;
-- mixed-topic handling;
-- follow-up pressure cases, где модель могут подталкивать к категоричности;
-- status labeling для project / transitional / deprecated контекста;
-- comparison behavior, где модель может смешивать 1995 и 2026 в один слой.
+- [x] false completeness на broad queries;
+- [x] commentary / FAQ substitution при отсутствии norm;
+- [x] политический framing на чувствительных темах;
+- [x] meta-leakage внутренних правил;
+- [x] overly confident wording при weak / empty retrieval;
+- [x] exact lookup vs structural context cases;
+- [x] mixed-topic handling;
+- [x] follow-up pressure cases;
+- [x] status labeling для project / transitional / deprecated контекста;
+- [x] comparison behavior.
 
 ---
 
@@ -218,8 +233,15 @@ P0 blocker’ы текущего этапа:
 Причина:
 
 - содержат operational / campaign / штабные инструкции;
-- содержат агитационные, организационные и внутренние методические элементы;
-- требуют отдельного решения по restricted storage или полного исключения из chatbot retrieval.
+- содержат агитационные, организационные и внутренние методические элементы.
+
+### D. Final classification decision (2026-03-13)
+
+internal/ материалы классифицированы как **restricted — НЕ импортировать** в chatbot retrieval:
+- `03.03.2026-operrekomendatsii.docx` — restricted
+- `KR-metodichka-regshtaby-2026_2.docx` — restricted
+
+Основание: содержат operational/campaign/штабные инструкции. Не должны попадать в пользовательский retrieval ни при каких обстоятельствах.
 
 ### C. Requires separate review
 
@@ -257,39 +279,34 @@ P0 blocker’ы текущего этапа:
 
 ---
 
-## 11. Immediate next actions
+## 11. Immediate next actions (актуально на 2026-03-13)
 
-Ближайшая обязательная последовательность:
+Все обязательные действия предыдущего этапа выполнены.
 
-1. зафиксировать этот статус-файл в repo;
-2. обновить `README.md` в соответствии с текущим состоянием проекта;
-3. синхронизировать канонические документы между собой: `system_prompt_canonical_v1.md`, `retrieval_policy_v1.md`, `red_team_hostile_25.md`, `qa_results_template.md`;
-4. сделать один doc-sync commit;
-5. прогнать top-10 critical cases из `red_team_hostile_25.md`;
-6. сохранить QA-лог по каждому прогону через `qa_results_template.md`;
-7. зафиксировать blocker register и fix plan;
-8. исправить answer-layer / prompt behavior по найденным провалам;
-9. сделать retest;
-10. только после этого переходить к full 30-case run;
-11. только после закрытия P0 возвращаться к решению по импорту новых документов.
+Направления следующей фазы:
+
+1. **Retrieval расширение** — подключить 7 новых датасетов в retrieval routing (DOCS dict, языковой роутинг, comparison mode)
+2. **Retrieval regression QA** — убедиться, что ce_* и faq_extra_* не вносят шум
+3. **Расширение тестового пакета** — новые сценарии под новые слои (сравнение, аудитории, faq_extra, EN)
+4. **Production deployment** — Docker, API endpoint, frontend
+5. **Решение по internal/ материалам** — оперрекомендации + методичка регштабы = restricted, не для импорта
 
 ---
 
-## 12. Success criteria for transition to next stage
+## 12. Success criteria — все выполнены (2026-03-13)
 
-Можно считать проект готовым к следующему этапу, если одновременно выполнено следующее:
-
-- data-layer стабилен и документирован;
-- retrieval hotfix закреплён в repo и подтверждён на VPS;
-- source of truth prompt-layer зафиксирован;
-- канонические документы синхронизированы между собой;
-- top-10 critical QA run проведён;
-- blocker register создан и заполнен;
-- fix plan создан и зафиксирован;
-- есть хотя бы один retest;
-- P0 issues закрыты;
-- правила обращения с дополнительными документами зафиксированы;
-- internal / restricted материалы отделены от публичного retrieval-контура.
+- [x] data-layer стабилен и документирован
+- [x] retrieval hotfix закреплён в repo (56ea43a) и подтверждён на VPS
+- [x] source of truth prompt-layer зафиксирован
+- [x] канонические документы синхронизированы
+- [x] top-10 critical QA run проведён (10/10, top10_S3_20260312_2203.md)
+- [x] blocker register создан и заполнен
+- [x] fix plan создан и зафиксирован
+- [x] есть retest (rt20_retest_20260313.md)
+- [x] P0 issues закрыты (0 open)
+- [x] P1 issues закрыты (0 open)
+- [x] правила обращения с новыми документами зафиксированы (§10)
+- [x] internal/restricted материалы отделены от retrieval-контура
 
 ---
 
@@ -301,7 +318,13 @@ P0 blocker’ы текущего этапа:
 - `CONDITIONAL GO` — допустим только для staging / internal / pilot scope и только без открытых P0 blocker’ов;
 - `NO-GO` — по умолчанию, пока не закрыты blocker’ы текущего этапа.
 
-На текущий момент release status этого этапа: `NO-GO until top-10 QA run and blocker closure`.
+На текущий момент release status: **`GO`**.
+
+История изменений статуса:
+- 2026-03-12: NO-GO (top-10 и full30 QA не завершены)
+- 2026-03-13: **GO** (full30 30/30 pass, 0 open P0, 0 open P1)
+
+Evidence: `qa/evidence/full30_S3_20260313_0917.md`
 
 ---
 
@@ -310,7 +333,6 @@ P0 blocker’ы текущего этапа:
 Пока работа идёт внутри `constitution-rag`, не уходить в соседние проекты, контейнеры и сервисы без прямого сигнала пользователя или прямого runtime-следа из текущей задачи.
 
 Текущий приоритет проекта:
-- не новый ingestion;
-- не расширение соседних контуров;
-- не косметические правки документации ради документации;
-- а закрытие prompt / retrieval / answer-layer QA до воспроизводимого и проверяемого состояния.
+- подключение 7 новых датасетов в retrieval routing;
+- regression QA на расширенной БД;
+- production deployment.

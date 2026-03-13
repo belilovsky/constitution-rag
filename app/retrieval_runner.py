@@ -2,11 +2,30 @@ import re
 from app.db import fetch_all
 
 
+# ── Dataset registry (all 15 datasets) ──────────────────────────────
 DOCS = {
+    # Norm layer
     "norm_ru": "krk_2026_norm_ru",
+    "norm_kz": "krk_2026_norm_kz",
+    # Commentary layer (primary)
     "commentary_ru": "krk_2026_commentary_ru",
+    "commentary_kz": "krk_2026_commentary_kz",
+    # Civic-education sub-layer (secondary commentary)
+    "ce_theses_ru": "krk_2026_ce_theses_ru",
+    "ce_audiences_ru": "krk_2026_ce_audiences_ru",
+    # FAQ layer
     "faq_ru": "krk_2026_faq_ru",
+    "faq_kz": "krk_2026_faq_kz",
+    "faq_extra_ru": "krk_2026_faq_extra_ru",
+    "faq_extra_kz": "krk_2026_faq_extra_kz",
+    "faq_extra_en": "krk_2026_faq_extra_en",
+    # Comparison-only
+    "ce_comparison_ru": "krk_2026_ce_comparison_ru",
+    # Historical / deprecated
     "deprecated_ru": "krk_1995_deprecated_ru",
+    "deprecated_kz": "krk_1995_deprecated_kz",
+    # RESTRICTED — not used in ordinary retrieval
+    # "ce_lines_ru": "krk_2026_ce_lines_ru",
 }
 
 SAFE_FAILURE_PATTERNS = [
@@ -97,6 +116,63 @@ ARTICLE_PATTERNS = [
 ]
 
 
+# ── Language detection ──────────────────────────────────────────────
+_CYRILLIC = re.compile(r"[а-яёА-ЯЁ]")
+_KZ_SPECIFIC = re.compile(
+    r"[ӘәҒғҚқҢңӨөҰұҮүҺһІі]"
+    r"|(?:неге|қандай|қалай|бойынша|туралы|конституция[сн]|не\sдеген|мен\s)"
+)
+
+
+def detect_language(query: str) -> str:
+    """Detect query language: 'kz', 'en', or 'ru' (default)."""
+    if _KZ_SPECIFIC.search(query):
+        return "kz"
+    if not _CYRILLIC.search(query):
+        # No Cyrillic at all → treat as English
+        return "en"
+    return "ru"
+
+
+def lang_docs(lang: str) -> dict:
+    """Return doc-key mapping appropriate for the detected language."""
+    if lang == "kz":
+        return {
+            "norm": DOCS["norm_kz"],
+            "commentary": DOCS["commentary_kz"],
+            "faq": DOCS["faq_kz"],
+            "faq_extra": DOCS["faq_extra_kz"],
+            "deprecated": DOCS["deprecated_kz"],
+            # ce_theses / ce_audiences / ce_comparison — only in RU
+            "ce_theses": DOCS["ce_theses_ru"],
+            "ce_audiences": DOCS["ce_audiences_ru"],
+            "ce_comparison": DOCS["ce_comparison_ru"],
+        }
+    if lang == "en":
+        return {
+            # English has only faq_extra_en; fall back to RU for norm/commentary
+            "norm": DOCS["norm_ru"],
+            "commentary": DOCS["commentary_ru"],
+            "faq": DOCS["faq_extra_en"],       # primary FAQ for EN
+            "faq_extra": DOCS["faq_extra_en"],  # same
+            "deprecated": DOCS["deprecated_ru"],
+            "ce_theses": DOCS["ce_theses_ru"],
+            "ce_audiences": DOCS["ce_audiences_ru"],
+            "ce_comparison": DOCS["ce_comparison_ru"],
+        }
+    # default: ru
+    return {
+        "norm": DOCS["norm_ru"],
+        "commentary": DOCS["commentary_ru"],
+        "faq": DOCS["faq_ru"],
+        "faq_extra": DOCS["faq_extra_ru"],
+        "deprecated": DOCS["deprecated_ru"],
+        "ce_theses": DOCS["ce_theses_ru"],
+        "ce_audiences": DOCS["ce_audiences_ru"],
+        "ce_comparison": DOCS["ce_comparison_ru"],
+    }
+
+
 def normalize_query(query: str) -> str:
     q = query.lower().strip()
     q = q.replace("ё", "е")
@@ -154,7 +230,7 @@ def normalize_query(query: str) -> str:
     for src, dst in replacements.items():
         q = q.replace(src, dst)
 
-    q = re.sub(r"[«»\"“”„(),.:;!?]", " ", q)
+    q = re.sub(r"[«»\\\"\"\"„(),.:;!?]", " ", q)
     q = re.sub(r"\s+", " ", q).strip()
     return q
 
@@ -328,7 +404,9 @@ def detect_section_hint(query: str):
     return None
 
 
-def retrieve_exact_article(article_number: int, doc_key: str = DOCS["norm_ru"], limit: int = 5):
+def retrieve_exact_article(article_number: int, doc_key: str = None, limit: int = 5):
+    if doc_key is None:
+        doc_key = DOCS["norm_ru"]
     sql = """
     select
         d.doc_key,
@@ -350,7 +428,9 @@ def retrieve_exact_article(article_number: int, doc_key: str = DOCS["norm_ru"], 
     return fetch_all(sql, (doc_key, str(article_number), f"Статья {article_number}%", limit))
 
 
-def retrieve_exact_point(article_number: int, point_number: int, doc_key: str = DOCS["norm_ru"], limit: int = 5):
+def retrieve_exact_point(article_number: int, point_number: int, doc_key: str = None, limit: int = 5):
+    if doc_key is None:
+        doc_key = DOCS["norm_ru"]
     sql = """
     select
         d.doc_key,
@@ -478,6 +558,8 @@ def retrieve_keyword_priority(query: str, doc_key: str, limit: int = 5):
             )
             score_params.extend([like, like])
 
+    # NOTE: score_parts and conditions are built from hardcoded keyword lists only —
+    # never from user input. Do not add user-supplied strings to these lists.
     sql = f"""
     select
         d.doc_key,
@@ -550,7 +632,9 @@ def retrieve_articles_by_list(doc_key: str, article_numbers: list[int], per_arti
     return unique_rows(rows)
 
 
-def retrieve_topic_shortcut_2026(query: str):
+def retrieve_topic_shortcut_2026(query: str, norm_key: str = None):
+    if norm_key is None:
+        norm_key = DOCS["norm_ru"]
     q = normalize_query(query)
 
     matched_articles = []
@@ -562,204 +646,264 @@ def retrieve_topic_shortcut_2026(query: str):
         return []
 
     matched_articles = sorted(set(matched_articles))
-    return retrieve_articles_by_list(DOCS["norm_ru"], matched_articles, per_article_limit=2)
+    return retrieve_articles_by_list(norm_key, matched_articles, per_article_limit=2)
 
 
-def retrieve_topic_shortcut_1995(query: str):
+def retrieve_topic_shortcut_1995(query: str, deprecated_key: str = None):
+    if deprecated_key is None:
+        deprecated_key = DOCS["deprecated_ru"]
     q = normalize_query(query)
 
     for topic, article_numbers in TOPICAL_ARTICLE_MAP_1995.items():
         if topic in q:
-            return retrieve_articles_by_list(DOCS["deprecated_ru"], article_numbers, per_article_limit=1)
+            return retrieve_articles_by_list(deprecated_key, article_numbers, per_article_limit=1)
 
     return []
 
 
-def retrieve_change_explanation(query: str):
-    norm_rows = retrieve_keyword_priority(query, DOCS["norm_ru"], limit=5)
+def retrieve_change_explanation(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
+    norm_rows = retrieve_keyword_priority(query, ld["norm"], limit=5)
     if not norm_rows:
-        norm_rows = retrieve_article_range(DOCS["norm_ru"], 93, 94, limit=4)
+        norm_rows = retrieve_article_range(ld["norm"], 93, 94, limit=4)
 
-    commentary_rows = retrieve_keyword_priority(query, DOCS["commentary_ru"], limit=5)
+    commentary_rows = retrieve_keyword_priority(query, ld["commentary"], limit=5)
     if not commentary_rows:
-        commentary_rows = retrieve_fts(query, DOCS["commentary_ru"], limit=5)
+        commentary_rows = retrieve_fts(query, ld["commentary"], limit=5)
 
     if not commentary_rows:
-        commentary_rows = retrieve_trgm(query, DOCS["commentary_ru"], limit=5)
+        commentary_rows = retrieve_trgm(query, ld["commentary"], limit=5)
 
     return unique_rows(norm_rows[:3] + commentary_rows[:2])
 
 
-def retrieve_political_rights_overview():
-    return retrieve_articles_by_list(DOCS["norm_ru"], POLITICAL_RIGHTS_OVERVIEW_ARTICLES, per_article_limit=1)
+def retrieve_political_rights_overview(norm_key: str = None):
+    if norm_key is None:
+        norm_key = DOCS["norm_ru"]
+    return retrieve_articles_by_list(norm_key, POLITICAL_RIGHTS_OVERVIEW_ARTICLES, per_article_limit=1)
 
 
-def retrieve_broad(query: str):
+def _enrich_with_faq_extra(rows: list, query: str, ld: dict, max_extra: int = 2) -> list:
+    """Add faq_extra results if they bring new content (not already in rows)."""
+    faq_extra_key = ld.get("faq_extra")
+    if not faq_extra_key:
+        return rows
+    # Skip if faq_extra == faq (English case)
+    if faq_extra_key == ld.get("faq"):
+        return rows
+    extra = retrieve_fts(query, faq_extra_key, limit=max_extra)
+    if not extra:
+        extra = retrieve_trgm(query, faq_extra_key, limit=max_extra)
+    return unique_rows(rows + extra[:max_extra])
+
+
+def retrieve_broad(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
     q = normalize_query(query)
     topics = canonical_topics(q)
 
-    topic_rows = retrieve_topic_shortcut_2026(q)
+    topic_rows = retrieve_topic_shortcut_2026(q, norm_key=ld["norm"])
     if topic_rows:
-        return topic_rows
+        return _enrich_with_faq_extra(topic_rows, q, ld)
 
     if "политические_права" in topics:
-        rows = retrieve_political_rights_overview()
+        rows = retrieve_political_rights_overview(norm_key=ld["norm"])
         if rows:
-            return rows
+            return _enrich_with_faq_extra(rows, q, ld)
 
     if "права" in topics and any(x in q for x in ["свобода слова", "собрания", "участие в управлении"]):
         article_numbers = [23, 34, 35]
-        return retrieve_articles_by_list(DOCS["norm_ru"], article_numbers, per_article_limit=1)
+        rows = retrieve_articles_by_list(ld["norm"], article_numbers, per_article_limit=1)
+        return _enrich_with_faq_extra(rows, q, ld)
 
     if "президент" in topics:
-        return retrieve_article_range(DOCS["norm_ru"], 42, 49, limit=8)
+        return retrieve_article_range(ld["norm"], 42, 49, limit=8)
 
     if "правительство" in topics:
-        return retrieve_article_range(DOCS["norm_ru"], 63, 69, limit=8)
+        return retrieve_article_range(ld["norm"], 63, 69, limit=8)
 
-    keyword_rows = retrieve_keyword_priority(q, DOCS["norm_ru"], limit=8)
+    keyword_rows = retrieve_keyword_priority(q, ld["norm"], limit=8)
     if keyword_rows:
-        return keyword_rows
+        return _enrich_with_faq_extra(keyword_rows, q, ld)
 
-    section_rows = retrieve_section_priority(q, DOCS["norm_ru"], limit=8)
+    section_rows = retrieve_section_priority(q, ld["norm"], limit=8)
     if section_rows:
-        return section_rows
+        return _enrich_with_faq_extra(section_rows, q, ld)
 
-    rows = retrieve_fts(q, DOCS["norm_ru"], limit=8)
+    rows = retrieve_fts(q, ld["norm"], limit=8)
     if rows:
-        return rows
+        return _enrich_with_faq_extra(rows, q, ld)
+
+    # Fallback: try faq_extra directly for broad queries
+    faq_rows = retrieve_fts(q, ld.get("faq_extra", ld["faq"]), limit=5)
+    if faq_rows:
+        return faq_rows
 
     return []
 
 
-def retrieve_ordinary(query: str):
+def retrieve_ordinary(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
     q = normalize_query(query)
     topics = canonical_topics(q)
 
     if is_probably_weak_query(q):
         return []
 
-    topic_rows = retrieve_topic_shortcut_2026(q)
+    topic_rows = retrieve_topic_shortcut_2026(q, norm_key=ld["norm"])
     if topic_rows:
-        return topic_rows
+        return _enrich_with_faq_extra(topic_rows, q, ld)
 
     if "политические_права" in topics:
-        rows = retrieve_political_rights_overview()
+        rows = retrieve_political_rights_overview(norm_key=ld["norm"])
         if rows:
-            return rows
+            return _enrich_with_faq_extra(rows, q, ld)
 
     if "изменения" in topics:
-        return retrieve_change_explanation(q)
+        return retrieve_change_explanation(q, ld=ld)
 
-    keyword_rows = retrieve_keyword_priority(q, DOCS["norm_ru"], limit=5)
+    keyword_rows = retrieve_keyword_priority(q, ld["norm"], limit=5)
     if keyword_rows:
-        return keyword_rows
+        return _enrich_with_faq_extra(keyword_rows, q, ld)
 
-    section_rows = retrieve_section_priority(q, DOCS["norm_ru"], limit=5)
+    section_rows = retrieve_section_priority(q, ld["norm"], limit=5)
     if section_rows:
-        return section_rows
+        return _enrich_with_faq_extra(section_rows, q, ld)
 
-    rows = retrieve_fts(q, DOCS["norm_ru"], limit=5)
+    rows = retrieve_fts(q, ld["norm"], limit=5)
     if rows:
-        return rows
+        return _enrich_with_faq_extra(rows, q, ld)
+
+    # Fallback: try faq + faq_extra before giving up
+    faq_rows = retrieve_fts(q, ld["faq"], limit=3)
+    if not faq_rows:
+        faq_extra_key = ld.get("faq_extra", ld["faq"])
+        faq_rows = retrieve_fts(q, faq_extra_key, limit=3)
+    if faq_rows:
+        return faq_rows
 
     return []
 
 
-def retrieve_explanation(query: str):
+def retrieve_explanation(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
     q = normalize_query(query)
     topics = canonical_topics(q)
 
     if "изменения" in topics:
-        return retrieve_change_explanation(q)
+        return retrieve_change_explanation(q, ld=ld)
 
-    norm_rows = retrieve_topic_shortcut_2026(q)
+    norm_rows = retrieve_topic_shortcut_2026(q, norm_key=ld["norm"])
     if not norm_rows:
-        norm_rows = retrieve_keyword_priority(q, DOCS["norm_ru"], limit=3)
+        norm_rows = retrieve_keyword_priority(q, ld["norm"], limit=3)
     if not norm_rows:
-        norm_rows = retrieve_section_priority(q, DOCS["norm_ru"], limit=3)
+        norm_rows = retrieve_section_priority(q, ld["norm"], limit=3)
     if not norm_rows:
-        norm_rows = retrieve_fts(q, DOCS["norm_ru"], limit=3)
+        norm_rows = retrieve_fts(q, ld["norm"], limit=3)
 
-    commentary_rows = retrieve_keyword_priority(q, DOCS["commentary_ru"], limit=2)
+    commentary_rows = retrieve_keyword_priority(q, ld["commentary"], limit=2)
     if not commentary_rows:
-        commentary_rows = retrieve_section_priority(q, DOCS["commentary_ru"], limit=2)
+        commentary_rows = retrieve_section_priority(q, ld["commentary"], limit=2)
     if not commentary_rows:
-        commentary_rows = retrieve_fts(q, DOCS["commentary_ru"], limit=2)
+        commentary_rows = retrieve_fts(q, ld["commentary"], limit=2)
+
+    # ── NEW: add civic-education theses as supporting context ──
+    ce_theses_rows = retrieve_fts(q, ld["ce_theses"], limit=1)
 
     if norm_rows:
-        return unique_rows(norm_rows + commentary_rows)
+        base = unique_rows(norm_rows + commentary_rows + ce_theses_rows)
+        return _enrich_with_faq_extra(base, q, ld)
 
-    faq_rows = retrieve_fts(q, DOCS["faq_ru"], limit=2)
+    # Fallback to FAQ layer
+    faq_rows = retrieve_fts(q, ld["faq"], limit=2)
+    if not faq_rows:
+        faq_rows = retrieve_fts(q, ld.get("faq_extra", ld["faq"]), limit=2)
     if faq_rows:
-        return unique_rows(commentary_rows + faq_rows)
+        return unique_rows(commentary_rows + ce_theses_rows + faq_rows)
 
-    return commentary_rows
+    return unique_rows(commentary_rows + ce_theses_rows)
 
 
-def retrieve_historical(query: str):
+def retrieve_historical(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
     q = normalize_query(query)
 
-    topic_rows = retrieve_topic_shortcut_1995(q)
+    topic_rows = retrieve_topic_shortcut_1995(q, deprecated_key=ld["deprecated"])
     if topic_rows:
         return topic_rows
 
-    keyword_rows = retrieve_keyword_priority(q, DOCS["deprecated_ru"], limit=5)
+    keyword_rows = retrieve_keyword_priority(q, ld["deprecated"], limit=5)
     if keyword_rows:
         return keyword_rows
 
-    section_rows = retrieve_section_priority(q, DOCS["deprecated_ru"], limit=5)
+    section_rows = retrieve_section_priority(q, ld["deprecated"], limit=5)
     if section_rows:
         return section_rows
 
-    rows = retrieve_fts(q, DOCS["deprecated_ru"], limit=5)
+    rows = retrieve_fts(q, ld["deprecated"], limit=5)
     if rows:
         return rows
 
     return []
 
 
-def retrieve_comparison(query: str):
+def retrieve_comparison(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
     q = normalize_query(query)
     topics = canonical_topics(q)
+
+    # ── NEW: always include ce_comparison_ru as structured comparison ──
+    ce_comp_rows = retrieve_fts(q, ld["ce_comparison"], limit=3)
+    if not ce_comp_rows:
+        ce_comp_rows = retrieve_trgm(q, ld["ce_comparison"], limit=2)
 
     if "президент" in topics:
         return {
-            "2026": retrieve_article_range(DOCS["norm_ru"], 42, 49, limit=4),
-            "1995": retrieve_article_range(DOCS["deprecated_ru"], 40, 48, limit=4),
+            "2026": retrieve_article_range(ld["norm"], 42, 49, limit=4),
+            "1995": retrieve_article_range(ld["deprecated"], 40, 48, limit=4),
+            "comparison_table": ce_comp_rows,
         }
 
     if "правительство" in topics:
         return {
-            "2026": retrieve_article_range(DOCS["norm_ru"], 63, 69, limit=4),
-            "1995": retrieve_article_range(DOCS["deprecated_ru"], 64, 70, limit=4),
+            "2026": retrieve_article_range(ld["norm"], 63, 69, limit=4),
+            "1995": retrieve_article_range(ld["deprecated"], 64, 70, limit=4),
+            "comparison_table": ce_comp_rows,
         }
 
     if "свобода_слова" in topics:
         return {
-            "2026": retrieve_articles_by_list(DOCS["norm_ru"], [23], per_article_limit=2),
-            "1995": retrieve_keyword_priority("свобода слова цензура информация", DOCS["deprecated_ru"], limit=3),
+            "2026": retrieve_articles_by_list(ld["norm"], [23], per_article_limit=2),
+            "1995": retrieve_keyword_priority("свобода слова цензура информация", ld["deprecated"], limit=3),
+            "comparison_table": ce_comp_rows,
         }
 
-    current_rows = retrieve_topic_shortcut_2026(q)
+    current_rows = retrieve_topic_shortcut_2026(q, norm_key=ld["norm"])
     if not current_rows:
-        current_rows = retrieve_keyword_priority(q, DOCS["norm_ru"], limit=4)
+        current_rows = retrieve_keyword_priority(q, ld["norm"], limit=4)
     if not current_rows:
-        current_rows = retrieve_section_priority(q, DOCS["norm_ru"], limit=4)
+        current_rows = retrieve_section_priority(q, ld["norm"], limit=4)
     if not current_rows:
-        current_rows = retrieve_fts(q, DOCS["norm_ru"], limit=4)
+        current_rows = retrieve_fts(q, ld["norm"], limit=4)
 
-    historical_rows = retrieve_topic_shortcut_1995(q)
+    historical_rows = retrieve_topic_shortcut_1995(q, deprecated_key=ld["deprecated"])
     if not historical_rows:
-        historical_rows = retrieve_keyword_priority(q, DOCS["deprecated_ru"], limit=4)
+        historical_rows = retrieve_keyword_priority(q, ld["deprecated"], limit=4)
     if not historical_rows:
-        historical_rows = retrieve_section_priority(q, DOCS["deprecated_ru"], limit=4)
+        historical_rows = retrieve_section_priority(q, ld["deprecated"], limit=4)
     if not historical_rows:
-        historical_rows = retrieve_fts(q, DOCS["deprecated_ru"], limit=4)
+        historical_rows = retrieve_fts(q, ld["deprecated"], limit=4)
 
     return {
         "2026": unique_rows(current_rows),
         "1995": unique_rows(historical_rows),
+        "comparison_table": ce_comp_rows,
     }
 
 
@@ -777,12 +921,14 @@ def split_mixed_query(query: str):
     return [q]
 
 
-def retrieve_mixed(query: str):
+def retrieve_mixed(query: str, ld: dict = None):
+    if ld is None:
+        ld = lang_docs("ru")
     parts = split_mixed_query(query)
     bundled = []
 
     for part in parts:
-        part_rows = retrieve_ordinary(part)
+        part_rows = retrieve_ordinary(part, ld=ld)
         bundled.append({
             "subquery": part,
             "results": unique_rows(part_rows),
@@ -792,6 +938,8 @@ def retrieve_mixed(query: str):
 
 
 def run_retrieval(query: str):
+    lang = detect_language(query)
+    ld = lang_docs(lang)
     mode = classify_query(query)
 
     if mode == "exact":
@@ -799,37 +947,39 @@ def run_retrieval(query: str):
         if point_number is not None and article_number is not None:
             return {
                 "mode": mode,
-                "results": retrieve_exact_point(article_number, point_number),
+                "lang": lang,
+                "results": retrieve_exact_point(article_number, point_number, doc_key=ld["norm"]),
                 "point_number": point_number,
                 "article_number": article_number,
             }
 
         article_number = extract_article_number(query)
         if article_number is None:
-            return {"mode": mode, "results": []}
+            return {"mode": mode, "lang": lang, "results": []}
 
         return {
             "mode": mode,
-            "results": retrieve_exact_article(article_number),
+            "lang": lang,
+            "results": retrieve_exact_article(article_number, doc_key=ld["norm"]),
             "article_number": article_number,
         }
 
     if mode == "comparison":
-        return {"mode": mode, "results": retrieve_comparison(query)}
+        return {"mode": mode, "lang": lang, "results": retrieve_comparison(query, ld=ld)}
 
     if mode == "historical":
-        return {"mode": mode, "results": retrieve_historical(query)}
+        return {"mode": mode, "lang": lang, "results": retrieve_historical(query, ld=ld)}
 
     if mode == "explanation":
-        return {"mode": mode, "results": retrieve_explanation(query)}
+        return {"mode": mode, "lang": lang, "results": retrieve_explanation(query, ld=ld)}
 
     if mode == "policy":
-        return {"mode": mode, "results": retrieve_policy_guard(query)}
+        return {"mode": mode, "lang": lang, "results": retrieve_policy_guard(query)}
 
     if mode == "mixed":
-        return {"mode": mode, "results": retrieve_mixed(query)}
+        return {"mode": mode, "lang": lang, "results": retrieve_mixed(query, ld=ld)}
 
     if mode == "broad":
-        return {"mode": mode, "results": retrieve_broad(query)}
+        return {"mode": mode, "lang": lang, "results": retrieve_broad(query, ld=ld)}
 
-    return {"mode": mode, "results": retrieve_ordinary(query)}
+    return {"mode": mode, "lang": lang, "results": retrieve_ordinary(query, ld=ld)}

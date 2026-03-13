@@ -10,10 +10,38 @@ from app.retrieval_runner import run_retrieval
 BASE_DIR = Path(__file__).resolve().parent.parent
 SYSTEM_PROMPT_PATH = BASE_DIR / "docs" / "system_prompt_canonical_v1.md"
 
-SAFE_FAILURE_TEXT = (
-    "По запросу не найдено релевантных материалов в базе знаний. "
-    "Пожалуйста, уточните статью, тему или формулировку вопроса."
-)
+SAFE_FAILURE_TEXT = {
+    "ru": (
+        "По запросу не найдено релевантных материалов в базе знаний. "
+        "Пожалуйста, уточните статью, тему или формулировку вопроса."
+    ),
+    "kz": (
+        "Білім базасында сұрау бойынша тиісті материалдар табылмады. "
+        "Мақаланы, тақырыпты немесе сұрақтың тұжырымдамасын нақтылаңыз."
+    ),
+    "en": (
+        "No relevant materials found in the knowledge base. "
+        "Please specify the article, topic, or rephrase your question."
+    ),
+}
+
+USER_PROMPT_TEMPLATE = {
+    "ru": (
+        "Ниже дан вопрос пользователя и retrieved context из базы знаний проекта constitution-rag.\n"
+        "Отвечай только по найденным материалам. Не добавляй сведения от себя. "
+        "Если данных недостаточно, скажи об этом прямо и кратко.\n\n"
+    ),
+    "kz": (
+        "Төменде пайдаланушы сұрағы және constitution-rag жобасының білім базасынан алынған контекст берілген.\n"
+        "Тек табылған материалдар бойынша жауап бер. Өзіңнен мәлімет қоспа. "
+        "Деректер жеткіліксіз болса, тікелей және қысқаша айт.\n\n"
+    ),
+    "en": (
+        "Below is the user's question and retrieved context from the constitution-rag knowledge base.\n"
+        "Answer only based on the retrieved materials. Do not add information on your own. "
+        "If data is insufficient, say so directly and briefly.\n\n"
+    ),
+}
 
 
 def load_system_prompt() -> str:
@@ -74,6 +102,7 @@ def flatten_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
         rows = []
         rows.extend(results.get("2026", []))
         rows.extend(results.get("1995", []))
+        rows.extend(results.get("comparison_table", []))
         return rows
 
     if mode == "mixed":
@@ -103,6 +132,14 @@ def build_context_block(payload: dict[str, Any]) -> str:
             parts.append("----")
             parts.append(format_row(row))
 
+        # NEW: comparison table from ce_comparison_ru
+        comp_table = results.get("comparison_table", [])
+        if comp_table:
+            parts.extend(["", "COMPARISON_TABLE (structured 1995↔2026 comparison, layer=comparison-table):"])
+            for row in comp_table:
+                parts.append("----")
+                parts.append(format_row(row))
+
         return "\n".join(parts)
 
     if mode == "mixed":
@@ -127,14 +164,14 @@ def build_context_block(payload: dict[str, Any]) -> str:
 
 
 def build_user_prompt(query: str, payload: dict[str, Any]) -> str:
+    lang = payload.get("lang", "ru")
     context_block = build_context_block(payload)
+    template = USER_PROMPT_TEMPLATE.get(lang, USER_PROMPT_TEMPLATE["ru"])
 
     return (
-        "Ниже дан вопрос пользователя и retrieved context из базы знаний проекта constitution-rag.\n"
-        "Отвечай только по найденным материалам. Не добавляй сведения от себя. "
-        "Если данных недостаточно, скажи об этом прямо и кратко.\n\n"
-        f"QUESTION:\n{query}\n\n"
-        f"{context_block}\n"
+        template
+        + f"QUESTION:\n{query}\n\n"
+        + f"{context_block}\n"
     )
 
 
@@ -165,11 +202,13 @@ def generate_answer(query: str) -> dict[str, Any]:
 
     answer_text = (response.output_text or "").strip()
     if not answer_text:
-        answer_text = SAFE_FAILURE_TEXT
+        lang = payload.get("lang", "ru")
+        answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
 
     return {
         "query": query,
         "mode": payload.get("mode", "unknown"),
+        "lang": payload.get("lang", "ru"),
         "answer": answer_text,
         "retrieval": payload,
     }
