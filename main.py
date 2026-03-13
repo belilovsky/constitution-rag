@@ -40,6 +40,7 @@ from app.conversation_classifier import (
     FOLLOWUP_SYSTEM_ADDENDUM,
 )
 from app.retrieval_runner import detect_language
+from app.intent_rewriter import rewrite_query
 
 logger = logging.getLogger("constitution_rag")
 
@@ -324,9 +325,9 @@ async def ask_stream(req: AskRequest):
             # ── Conversational routing: greetings, meta, followup ──
             conv_type, conv_response = classify_conversational(req.query, lang)
 
-            if conv_type == "greeting":
-                # Instant greeting, no LLM or retrieval
-                meta = {"request_id": request_id, "mode": "greeting", "lang": lang}
+            # ── Instant responses: greeting, smalltalk ──
+            if conv_type in ("greeting", "smalltalk"):
+                meta = {"request_id": request_id, "mode": conv_type, "lang": lang}
                 yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
                 chunk_data = json.dumps({"text": conv_response}, ensure_ascii=False)
                 yield f"event: text\ndata: {chunk_data}\n\n"
@@ -335,19 +336,16 @@ async def ask_stream(req: AskRequest):
                 yield f"event: done\ndata: {json.dumps(done)}\n\n"
                 _log_query(
                     request_id=request_id, query=req.query,
-                    lang=lang, mode="greeting", chunks_used=0,
+                    lang=lang, mode=conv_type, chunks_used=0,
                     answer_len=len(conv_response), latency_ms=latency_ms,
                     model="static",
                 )
                 return
 
-            if conv_type in ("meta", "followup"):
-                # LLM with special addendum, no retrieval
-                sys_prompt = load_system_prompt()
-                addendum = META_SYSTEM_ADDENDUM if conv_type == "meta" else FOLLOWUP_SYSTEM_ADDENDUM
-                sys_prompt += addendum
-
-                meta = {"request_id": request_id, "mode": conv_type, "lang": lang}
+            # ── Meta-question: LLM without retrieval ──
+            if conv_type == "meta":
+                sys_prompt = load_system_prompt() + META_SYSTEM_ADDENDUM
+                meta = {"request_id": request_id, "mode": "meta", "lang": lang}
                 yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
 
                 client = get_client()
@@ -380,7 +378,7 @@ async def ask_stream(req: AskRequest):
                 yield f"event: done\ndata: {json.dumps(done)}\n\n"
                 _log_query(
                     request_id=request_id, query=req.query,
-                    lang=lang, mode=conv_type, chunks_used=0,
+                    lang=lang, mode="meta", chunks_used=0,
                     answer_len=len(answer_text), latency_ms=latency_ms,
                     model=model,
                 )
@@ -405,9 +403,57 @@ async def ask_stream(req: AskRequest):
                     )
                     return
 
-            # ── Normal retrieval path ──
-            # 1. Retrieval (sync, in thread)
-            payload = await asyncio.to_thread(run_retrieval, req.query)
+            # ── Intent rewriter: LLM rewrites query using history context ──
+            history_msgs = _trim_history(req.history)
+            intent_result = await asyncio.to_thread(
+                rewrite_query, req.query, history_msgs
+            )
+            rewritten = intent_result["rewritten_query"]
+            intent = intent_result["intent"]
+
+            # If rewriter says no retrieval needed (LLM-detected smalltalk)
+            if not intent_result["needs_retrieval"]:
+                sys_prompt = load_system_prompt() + META_SYSTEM_ADDENDUM
+                meta = {"request_id": request_id, "mode": intent, "lang": lang}
+                yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
+
+                client = get_client()
+                model = get_model_name()
+                messages = [{"role": "system", "content": sys_prompt}]
+                messages.extend(history_msgs)
+                messages.append({"role": "user", "content": req.query})
+
+                stream = client.responses.create(
+                    model=model, input=messages,
+                    temperature=0.3, stream=True,
+                )
+                for event in stream:
+                    if hasattr(event, "type") and event.type == "response.output_text.delta":
+                        delta = event.delta
+                        if delta:
+                            full_answer.append(delta)
+                            chunk_data = json.dumps({"text": delta}, ensure_ascii=False)
+                            yield f"event: text\ndata: {chunk_data}\n\n"
+
+                answer_text = "".join(full_answer).strip()
+                if not answer_text:
+                    answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
+                    fallback_data = json.dumps({"text": answer_text}, ensure_ascii=False)
+                    yield f"event: text\ndata: {fallback_data}\n\n"
+
+                latency_ms = int((time.time() - t0) * 1000)
+                done = {"request_id": request_id, "latency_ms": latency_ms}
+                yield f"event: done\ndata: {json.dumps(done)}\n\n"
+                _log_query(
+                    request_id=request_id, query=req.query,
+                    lang=lang, mode=intent, chunks_used=0,
+                    answer_len=len(answer_text), latency_ms=latency_ms,
+                    model=model,
+                )
+                return
+
+            # ── Normal retrieval path (using REWRITTEN query) ──
+            payload = await asyncio.to_thread(run_retrieval, rewritten)
             lang = payload.get("lang", "ru")
             mode = payload.get("mode", "unknown")
 
@@ -415,19 +461,18 @@ async def ask_stream(req: AskRequest):
             meta = {"request_id": request_id, "mode": mode, "lang": lang}
             yield f"event: meta\ndata: {json.dumps(meta, ensure_ascii=False)}\n\n"
 
-            # 2. Build prompts
+            # Build prompts — use original query so LLM sees what user asked
             system_prompt = load_system_prompt()
             user_prompt = build_user_prompt(req.query, payload)
             client = get_client()
             model = get_model_name()
 
-            # 3. Build messages with history
-            history_msgs = _trim_history(req.history)
+            # Build messages with history
             messages = [{"role": "system", "content": system_prompt}]
             messages.extend(history_msgs)
             messages.append({"role": "user", "content": user_prompt})
 
-            # 4. Stream from OpenAI
+            # Stream from OpenAI
             stream = client.responses.create(
                 model=model,
                 input=messages,
