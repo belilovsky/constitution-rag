@@ -62,6 +62,35 @@ TOPICAL_ARTICLE_MAP_2026 = {
     "референдум": [35],
     "лишение гражданства": [13],
     "гражданства": [13],
+    # Social rights: health, education, labor, social security
+    "здоровье": [32],
+    "здравоохранение": [32],
+    "медицина": [32],
+    "медицинская помощь": [32],
+    "лечение": [32],
+    "врач": [32, 27],
+    "медработник": [32, 27],
+    "образование": [33],
+    "обучение": [33],
+    "учитель": [33, 27],
+    "педагог": [33, 27],
+    "преподаватель": [33, 27],
+    "школа": [33],
+    "университет": [33],
+    "труд": [27],
+    "работа": [27],
+    "зарплата": [31, 27],
+    "пенсия": [31],
+    "социальная защита": [31],
+    "социальное обеспечение": [31],
+    "семья": [30],
+    "материнство": [30],
+    "детство": [30],
+    "жилище": [28],
+    "собственность": [29],
+    "экология": [37],
+    "природа": [37],
+    "окружающая среда": [37],
 }
 
 TOPICAL_ARTICLE_MAP_1995 = {
@@ -244,6 +273,54 @@ def normalize_query(query: str) -> str:
         "парламентский": "курултай",
         "парламентских": "курултай",
         "парламентские": "курултай",
+
+        # Health / medicine normalizations
+        "врачей": "врач",
+        "врачам": "врач",
+        "врачи": "врач",
+        "врачом": "врач",
+        "медиков": "медработник",
+        "медики": "медработник",
+        "медика": "медработник",
+        "медицины": "медицина",
+        "медициной": "медицина",
+        "медицинской": "медицинская помощь",
+        "медицинскую": "медицинская помощь",
+        "здоровья": "здоровье",
+        "здоровьем": "здоровье",
+        "здравоохранения": "здравоохранение",
+        "здравоохранением": "здравоохранение",
+        "лечения": "лечение",
+        "лечением": "лечение",
+
+        # Education normalizations
+        "учителей": "учитель",
+        "учителям": "учитель",
+        "учителя": "учитель",
+        "учителем": "учитель",
+        "педагогов": "педагог",
+        "педагогам": "педагог",
+        "педагоги": "педагог",
+        "преподавателей": "преподаватель",
+        "преподавателям": "преподаватель",
+        "преподавателя": "преподаватель",
+        "преподаватели": "преподаватель",
+        "образования": "образование",
+        "образованием": "образование",
+        "обучения": "обучение",
+        "обучением": "обучение",
+
+        # Social / labor normalizations
+        "пенсии": "пенсия",
+        "пенсий": "пенсия",
+        "пенсионеров": "пенсионер",
+        "пенсионерам": "пенсионер",
+        "пенсионеры": "пенсионер",
+        "зарплаты": "зарплата",
+        "зарплату": "зарплата",
+        "заработной платы": "зарплата",
+        "социальной защиты": "социальная защита",
+        "социальную защиту": "социальная защита",
     }
 
     for src, dst in replacements.items():
@@ -360,6 +437,19 @@ def canonical_topics(query: str) -> set[str]:
     ):
         topics.add("права")
 
+    # Social rights: health, education, labor
+    if any(x in q for x in ["здоровье", "здравоохранение", "медицин", "врач", "медработник", "лечение", "медицинская помощь"]):
+        topics.add("здоровье")
+
+    if any(x in q for x in ["образование", "обучение", "учитель", "педагог", "преподаватель", "школа", "университет"]):
+        topics.add("образование")
+
+    if any(x in q for x in ["пенсия", "социальная защита", "социальное обеспечение", "пенсионер"]):
+        topics.add("соцзащита")
+
+    if any(x in q for x in ["труд", "работа", "зарплата"]):
+        topics.add("труд")
+
     if "изменения" in q or "новая конституция" in q or "новеллы" in q:
         topics.add("изменения")
 
@@ -431,6 +521,10 @@ def detect_section_hint(query: str):
         or "политические_права" in topics
         or "свобода_слова" in topics
         or "мирные_собрания" in topics
+        or "здоровье" in topics
+        or "образование" in topics
+        or "соцзащита" in topics
+        or "труд" in topics
     ):
         return "Основные права, свободы и обязанности"
 
@@ -569,6 +663,22 @@ def retrieve_keyword_priority(query: str, doc_key: str, limit: int = 5):
     if "лишение гражданства" in q or "гражданства" in q:
         keyword_groups.append(["лишен гражданства", "лишение гражданства", "гражданства"])
 
+    # Health / medicine keywords
+    if any(x in q for x in ["здоровье", "здравоохранение", "медицин", "врач", "медработник", "лечение", "медицинская помощь"]):
+        keyword_groups.append(["охрана здоровья", "медицинск", "здоровье", "здравоохранение"])
+
+    # Education keywords
+    if any(x in q for x in ["образование", "обучение", "учитель", "педагог", "преподаватель", "школа", "университет"]):
+        keyword_groups.append(["образование", "обучение", "среднее образование", "высшее образование"])
+
+    # Social security / labor keywords
+    if any(x in q for x in ["пенсия", "социальная защита", "социальное обеспечение", "пенсионер"]):
+        keyword_groups.append(["пенси", "социальное обеспечение", "заработной платы", "социальн"])
+
+    # Labor / work keywords
+    if any(x in q for x in ["труд", "работа", "зарплата"]):
+        keyword_groups.append(["право на труд", "труд", "принудительный труд", "заработной платы"])
+
     if not keyword_groups:
         return []
 
@@ -697,7 +807,18 @@ def retrieve_topic_shortcut_1995(query: str, deprecated_key: str = None):
 def retrieve_change_explanation(query: str, ld: dict = None):
     if ld is None:
         ld = lang_docs("ru")
-    norm_rows = retrieve_keyword_priority(query, ld["norm"], limit=5)
+
+    # First try topical article map — this resolves health/education/etc. queries
+    topic_rows = retrieve_topic_shortcut_2026(query, norm_key=ld["norm"])
+    if topic_rows:
+        norm_rows = topic_rows[:4]
+    else:
+        norm_rows = retrieve_keyword_priority(query, ld["norm"], limit=5)
+
+    if not norm_rows:
+        norm_rows = retrieve_fts(query, ld["norm"], limit=5)
+
+    # Only fall back to articles 93-94 (referendum/transition) as absolute last resort
     if not norm_rows:
         norm_rows = retrieve_article_range(ld["norm"], 93, 94, limit=4)
 
@@ -717,6 +838,84 @@ def retrieve_political_rights_overview(norm_key: str = None):
     return retrieve_articles_by_list(norm_key, POLITICAL_RIGHTS_OVERVIEW_ARTICLES, per_article_limit=1)
 
 
+# ── Audience detection for ce_audiences dataset ─────────────────────
+AUDIENCE_KEYWORD_MAP = {
+    # keyword in normalized query → audience prefix in ce_audiences headings
+    "врач": "Преподаватели",  # no "Врачи" audience, closest is Преподаватели
+    "медработник": "Преподаватели",
+    "медицин": "Преподаватели",
+    "учитель": "Преподаватели",
+    "педагог": "Преподаватели",
+    "преподаватель": "Преподаватели",
+    "студент": "Молодёжь",
+    "молодежь": "Молодёжь",
+    "молодой": "Молодёжь",
+    "бизнес": "Представители бизнеса",
+    "предприниматель": "Представители бизнеса",
+    "журналист": "Журналисты",
+    "сми": "Журналисты",
+    "пресса": "Журналисты",
+    "правозащитник": "Правозащитники и активисты",
+    "активист": "Правозащитники и активисты",
+    "нко": "Правозащитники и активисты",
+    "госслужащий": "Государственные служащие",
+    "чиновник": "Государственные служащие",
+    "религия": "Религиозные служащие и представители конфессий",
+    "конфессия": "Религиозные служащие и представители конфессий",
+    "патриот": "Представители национал-патриотической аудитории",
+    "националист": "Представители национал-патриотической аудитории",
+}
+
+
+def detect_audience(query: str) -> list[str]:
+    """Detect audience prefixes from normalized query."""
+    q = normalize_query(query)
+    audiences = set()
+    for keyword, audience in AUDIENCE_KEYWORD_MAP.items():
+        if keyword in q:
+            audiences.add(audience)
+    return list(audiences)
+
+
+def retrieve_audience_context(query: str, ld: dict, limit: int = 3) -> list:
+    """Search ce_audiences dataset for audience-specific content."""
+    audiences = detect_audience(query)
+    if not audiences:
+        return []
+
+    ce_audiences_key = ld.get("ce_audiences")
+    if not ce_audiences_key:
+        return []
+
+    # Search for chunks whose heading starts with one of the detected audiences
+    audience_rows = []
+    for audience_prefix in audiences:
+        like = f"{audience_prefix}%"
+        sql = """
+        select
+            d.doc_key,
+            d.status,
+            c.chunk_index,
+            c.heading,
+            c.meta,
+            c.body
+        from document_chunks c
+        join documents d on d.id = c.document_id
+        where d.doc_key = %s
+          and coalesce(c.heading, '') ilike %s
+        order by c.chunk_index
+        limit %s
+        """
+        rows = fetch_all(sql, (ce_audiences_key, like, limit))
+        audience_rows.extend(rows)
+
+    # Also try FTS within ce_audiences for better relevance
+    fts_rows = retrieve_fts(query, ce_audiences_key, limit=2)
+    audience_rows.extend(fts_rows)
+
+    return unique_rows(audience_rows)[:limit]
+
+
 def _enrich_with_faq_extra(rows: list, query: str, ld: dict, max_extra: int = 2) -> list:
     """Add faq_extra results if they bring new content (not already in rows)."""
     faq_extra_key = ld.get("faq_extra")
@@ -729,6 +928,14 @@ def _enrich_with_faq_extra(rows: list, query: str, ld: dict, max_extra: int = 2)
     if not extra:
         extra = retrieve_trgm(query, faq_extra_key, limit=max_extra)
     return unique_rows(rows + extra[:max_extra])
+
+
+def _enrich_with_audience(rows: list, query: str, ld: dict, max_extra: int = 2) -> list:
+    """Add ce_audiences results if audience-specific query detected."""
+    audience_rows = retrieve_audience_context(query, ld, limit=max_extra)
+    if not audience_rows:
+        return rows
+    return unique_rows(rows + audience_rows[:max_extra])
 
 
 def retrieve_broad(query: str, ld: dict = None):
@@ -788,27 +995,33 @@ def retrieve_ordinary(query: str, ld: dict = None):
 
     topic_rows = retrieve_topic_shortcut_2026(q, norm_key=ld["norm"])
     if topic_rows:
-        return _enrich_with_faq_extra(topic_rows, q, ld)
+        base = _enrich_with_faq_extra(topic_rows, q, ld)
+        return _enrich_with_audience(base, query, ld)
 
     if "политические_права" in topics:
         rows = retrieve_political_rights_overview(norm_key=ld["norm"])
         if rows:
-            return _enrich_with_faq_extra(rows, q, ld)
+            base = _enrich_with_faq_extra(rows, q, ld)
+            return _enrich_with_audience(base, query, ld)
 
     if "изменения" in topics:
-        return retrieve_change_explanation(q, ld=ld)
+        base = retrieve_change_explanation(q, ld=ld)
+        return _enrich_with_audience(base, query, ld)
 
     keyword_rows = retrieve_keyword_priority(q, ld["norm"], limit=5)
     if keyword_rows:
-        return _enrich_with_faq_extra(keyword_rows, q, ld)
+        base = _enrich_with_faq_extra(keyword_rows, q, ld)
+        return _enrich_with_audience(base, query, ld)
 
     section_rows = retrieve_section_priority(q, ld["norm"], limit=5)
     if section_rows:
-        return _enrich_with_faq_extra(section_rows, q, ld)
+        base = _enrich_with_faq_extra(section_rows, q, ld)
+        return _enrich_with_audience(base, query, ld)
 
     rows = retrieve_fts(q, ld["norm"], limit=5)
     if rows:
-        return _enrich_with_faq_extra(rows, q, ld)
+        base = _enrich_with_faq_extra(rows, q, ld)
+        return _enrich_with_audience(base, query, ld)
 
     # Fallback: try faq + faq_extra before giving up
     faq_rows = retrieve_fts(q, ld["faq"], limit=3)
@@ -816,20 +1029,22 @@ def retrieve_ordinary(query: str, ld: dict = None):
         faq_extra_key = ld.get("faq_extra", ld["faq"])
         faq_rows = retrieve_fts(q, faq_extra_key, limit=3)
     if faq_rows:
-        return faq_rows
+        return _enrich_with_audience(faq_rows, query, ld)
 
     # Last resort: trigram similarity (handles typos and fuzzy queries)
     trgm_rows = retrieve_trgm(q, ld["norm"], limit=3)
     if trgm_rows and trgm_rows[0].get("sim", 0) > 0.15:
-        return _enrich_with_faq_extra(trgm_rows, q, ld)
+        base = _enrich_with_faq_extra(trgm_rows, q, ld)
+        return _enrich_with_audience(base, query, ld)
 
     # Try trgm on faq_extra too
     faq_extra_key = ld.get("faq_extra", ld["faq"])
     trgm_faq = retrieve_trgm(q, faq_extra_key, limit=3)
     if trgm_faq and trgm_faq[0].get("sim", 0) > 0.15:
-        return trgm_faq
+        return _enrich_with_audience(trgm_faq, query, ld)
 
-    return []
+    # Even if nothing found in norm/faq, try audience-only
+    return retrieve_audience_context(query, ld, limit=3)
 
 
 def retrieve_explanation(query: str, ld: dict = None):
@@ -838,8 +1053,13 @@ def retrieve_explanation(query: str, ld: dict = None):
     q = normalize_query(query)
     topics = canonical_topics(q)
 
+    # For "изменения" queries, use the change explanation flow
+    # (which now tries topical article map first before falling back to 93-94)
     if "изменения" in topics:
-        return retrieve_change_explanation(q, ld=ld)
+        base = retrieve_change_explanation(q, ld=ld)
+        # Enrich with audience context if applicable
+        base = _enrich_with_audience(base, query, ld, max_extra=2)
+        return base
 
     norm_rows = retrieve_topic_shortcut_2026(q, norm_key=ld["norm"])
     if not norm_rows:
@@ -855,21 +1075,25 @@ def retrieve_explanation(query: str, ld: dict = None):
     if not commentary_rows:
         commentary_rows = retrieve_fts(q, ld["commentary"], limit=2)
 
-    # ── NEW: add civic-education theses as supporting context ──
+    # ── Civic-education theses as supporting context ──
     ce_theses_rows = retrieve_fts(q, ld["ce_theses"], limit=1)
 
     if norm_rows:
         base = unique_rows(norm_rows + commentary_rows + ce_theses_rows)
-        return _enrich_with_faq_extra(base, q, ld)
+        base = _enrich_with_faq_extra(base, q, ld)
+        base = _enrich_with_audience(base, query, ld, max_extra=2)
+        return base
 
     # Fallback to FAQ layer
     faq_rows = retrieve_fts(q, ld["faq"], limit=2)
     if not faq_rows:
         faq_rows = retrieve_fts(q, ld.get("faq_extra", ld["faq"]), limit=2)
     if faq_rows:
-        return unique_rows(commentary_rows + ce_theses_rows + faq_rows)
+        base = unique_rows(commentary_rows + ce_theses_rows + faq_rows)
+        base = _enrich_with_audience(base, query, ld, max_extra=2)
+        return base
 
-    return unique_rows(commentary_rows + ce_theses_rows)
+    return _enrich_with_audience(unique_rows(commentary_rows + ce_theses_rows), query, ld)
 
 
 def retrieve_historical(query: str, ld: dict = None):
