@@ -26,25 +26,22 @@ SAFE_FAILURE_TEXT = {
 
 USER_PROMPT_TEMPLATE = {
     "ru": (
-        "Вопрос пользователя и материалы из базы знаний приведены ниже.\n"
-        "Дай полный, понятный ответ на основе этих материалов. "
-        "Синтезируй информацию из разных фрагментов. "
-        "Объясняй простым языком, приводи конкретные статьи. "
-        "Не придумывай то, чего нет в материалах.\n\n"
+        "Ниже дан вопрос пользователя и найденные материалы по проекту constitution-rag.\n"
+        "Отвечай на основе найденных материалов. "
+        "Синтезируй информацию из разных фрагментов, объясняй простым языком. "
+        "Не придумывай сведения, которых нет в материалах.\n\n"
     ),
     "kz": (
-        "Төменде пайдаланушы сұрағы және білім базасынан алынған материалдар берілген.\n"
-        "Осы материалдар негізінде толық, түсінікті жауап бер. "
-        "Әр түрлі үзінділерден ақпаратты біріктір. "
-        "Қарапайым тілмен түсіндір, нақты баптарды көрсет. "
-        "Материалдарда жоқ нәрсені ойдан шығарма.\n\n"
+        "Төменде пайдаланушы сұрағы және constitution-rag жобасының материалдары берілген.\n"
+        "Табылған материалдар негізінде жауап бер. "
+        "Әр түрлі үзінділерден ақпаратты біріктір, қарапайым тілмен түсіндір. "
+        "Материалдарда жоқ мәліметтерді ойдан шығарма.\n\n"
     ),
     "en": (
-        "Below is the user's question and materials from the knowledge base.\n"
-        "Give a full, clear answer based on these materials. "
-        "Synthesize information from different fragments. "
-        "Explain in plain language, cite specific articles. "
-        "Do not make up what is not in the materials.\n\n"
+        "Below is the user's question and retrieved materials from the constitution-rag project.\n"
+        "Answer based on the retrieved materials. "
+        "Synthesize information from different fragments, explain in plain language. "
+        "Do not make up information that is not in the materials.\n\n"
     ),
 }
 
