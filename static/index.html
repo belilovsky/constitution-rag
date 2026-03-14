@@ -659,6 +659,45 @@
 </main>
 
 <script>
+// ── Post-process: strip AI speech patterns ────────
+function cleanAIPatterns(text) {
+  let s = text;
+
+  // Remove sentences that START with banned connectors (whole sentence)
+  // These are filler sentences that add no information
+  s = s.replace(/(?:^|\n)\s*Таким образом[,\s][^.!?\n]*[.!?]/g, '');
+  s = s.replace(/(?:^|\n)\s*Подводя итог[,\s][^.!?\n]*[.!?]/g, '');
+  s = s.replace(/(?:^|\n)\s*В заключение[,\s][^.!?\n]*[.!?]/g, '');
+  s = s.replace(/(?:^|\n)\s*Кратко говоря[,\s][^.!?\n]*[.!?]/g, '');
+
+  // Remove inline connectors at start of sentence (keep the rest)
+  s = s.replace(/Проще говоря,\s*/g, '');
+  s = s.replace(/Другими словами,\s*/g, '');
+  s = s.replace(/Следует отметить, что\s*/g, '');
+  s = s.replace(/Стоит отметить, что\s*/g, '');
+  s = s.replace(/Важно отметить, что\s*/g, '');
+
+  // Remove "Это означает, что" at start of sentence (keep what follows)
+  s = s.replace(/Это означает, что\s*/g, '');
+  s = s.replace(/Это значит, что\s*/g, '');
+
+  // Remove "по найденным материалам" and variants
+  s = s.replace(/[Pp]о найденным материалам\s*/gi, '');
+  s = s.replace(/в найденных материалах\s*/gi, '');
+  s = s.replace(/в доступных материалах\s*/gi, '');
+
+  // Remove "Если нужна более подробная информация..." endings
+  s = s.replace(/\n\s*Если нужна более подробная информация[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/\n\s*Если хотите,? могу помочь[^.!?\n]*[.!?]?/g, '');
+
+  // Clean up: multiple newlines → max 2
+  s = s.replace(/\n{3,}/g, '\n\n');
+  // Trim
+  s = s.trim();
+
+  return s;
+}
+
 // ── Lightweight markdown→HTML renderer ──────────────
 function renderMarkdown(text) {
   // Escape HTML
@@ -1029,7 +1068,7 @@ async function streamAnswer(text, botEl, typingEl) {
               textEl.className = 'answer-text';
               botEl.appendChild(textEl);
             }
-            textEl.innerHTML = renderMarkdown(fullText);
+            textEl.innerHTML = renderMarkdown(cleanAIPatterns(fullText));
             chat.scrollTop = chat.scrollHeight;
           } else if (eventType === 'done') {
             latencyMs = data.latency_ms || 0;
