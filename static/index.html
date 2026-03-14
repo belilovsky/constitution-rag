@@ -344,20 +344,22 @@
       white-space: pre-wrap;
     }
 
-    .msg.bot .meta {
-      display: flex;
-      gap: 6px;
-      margin-top: 10px;
-      font-size: 11px;
-      color: var(--text-hint);
-      flex-wrap: wrap;
+    .msg.bot .answer-text ul,
+    .msg.bot .answer-text ol {
+      padding-left: 1.4em;
+      margin: 6px 0;
     }
 
-    .msg.bot .meta span {
-      background: var(--bg);
-      padding: 2px 8px;
-      border-radius: 6px;
-      font-weight: 500;
+    .msg.bot .answer-text li {
+      margin-bottom: 4px;
+    }
+
+    .msg.bot .answer-text p {
+      margin-bottom: 8px;
+    }
+
+    .msg.bot .answer-text p:last-child {
+      margin-bottom: 0;
     }
 
     /* ── TYPING INDICATOR ───────────────────────────── */
@@ -911,15 +913,11 @@ async function streamAnswer(text, botEl, typingEl) {
       }
     }
 
-    // Add metadata footer
-    if (meta.mode || latencyMs) {
-      const metaDiv = document.createElement('div');
-      metaDiv.className = 'meta';
-      if (meta.mode) metaDiv.innerHTML += `<span>${meta.mode}</span>`;
-      if (meta.lang) metaDiv.innerHTML += `<span>${meta.lang}</span>`;
-      if (latencyMs) metaDiv.innerHTML += `<span>${(latencyMs/1000).toFixed(1)}с</span>`;
-      botEl.appendChild(metaDiv);
-    }
+    // Store metadata as data-attributes for debugging (not shown to users)
+    if (meta.mode) botEl.dataset.mode = meta.mode;
+    if (meta.lang) botEl.dataset.lang = meta.lang;
+    if (latencyMs) botEl.dataset.latency = latencyMs;
+    // console.debug('Response meta:', meta.mode, meta.lang, latencyMs + 'ms');
 
   } catch (err) {
     if (typingEl && typingEl.parentNode) typingEl.remove();
