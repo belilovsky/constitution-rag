@@ -1,16 +1,9 @@
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
-
-from app.retrieval_runner import run_retrieval, detect_language
-from app.conversation_classifier import (
-    classify_conversational,
-    META_SYSTEM_ADDENDUM,
-    FOLLOWUP_SYSTEM_ADDENDUM,
-)
-from app.intent_rewriter import rewrite_query
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -33,42 +26,65 @@ SAFE_FAILURE_TEXT = {
 
 USER_PROMPT_TEMPLATE = {
     "ru": (
-        "Ниже дан вопрос пользователя и найденные материалы по проекту constitution-rag.\n"
-        "Отвечай только по найденным материалам. Не добавляй сведения от себя. "
-        "Если данных недостаточно, скажи об этом прямо и кратко.\n\n"
+        "Вопрос пользователя и материалы из базы знаний приведены ниже.\n"
+        "Дай полный, понятный ответ на основе этих материалов. "
+        "Синтезируй информацию из разных фрагментов. "
+        "Объясняй простым языком, приводи конкретные статьи. "
+        "Не придумывай то, чего нет в материалах.\n\n"
     ),
     "kz": (
-        "Төменде пайдаланушы сұрағы және constitution-rag жобасының материалдары берілген.\n"
-        "Тек табылған материалдар бойынша жауап бер. Өзіңнен мәлімет қоспа. "
-        "Деректер жеткіліксіз болса, тікелей және қысқаша айт.\n\n"
+        "Төменде пайдаланушы сұрағы және білім базасынан алынған материалдар берілген.\n"
+        "Осы материалдар негізінде толық, түсінікті жауап бер. "
+        "Әр түрлі үзінділерден ақпаратты біріктір. "
+        "Қарапайым тілмен түсіндір, нақты баптарды көрсет. "
+        "Материалдарда жоқ нәрсені ойдан шығарма.\n\n"
     ),
     "en": (
-        "Below is the user's question and retrieved materials from the constitution-rag project.\n"
-        "Answer only based on the retrieved materials. Do not add information on your own. "
-        "If data is insufficient, say so directly and briefly.\n\n"
+        "Below is the user's question and materials from the knowledge base.\n"
+        "Give a full, clear answer based on these materials. "
+        "Synthesize information from different fragments. "
+        "Explain in plain language, cite specific articles. "
+        "Do not make up what is not in the materials.\n\n"
     ),
 }
 
+# ── Cached singletons ──────────────────────────────────────────────
+
+_system_prompt_cache: str | None = None
+_client_cache: OpenAI | None = None
+_client_lock = threading.Lock()
+
 
 def load_system_prompt() -> str:
-    return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
+    """Load system prompt from file (cached after first read)."""
+    global _system_prompt_cache
+    if _system_prompt_cache is None:
+        _system_prompt_cache = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip()
+    return _system_prompt_cache
 
 
 def get_client() -> OpenAI:
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set")
-
-    base_url = os.getenv("OPENAI_BASE_URL")
-    if base_url:
-        return OpenAI(api_key=api_key, base_url=base_url)
-
-    return OpenAI(api_key=api_key)
+    """Get OpenAI client (singleton, thread-safe)."""
+    global _client_cache
+    if _client_cache is None:
+        with _client_lock:
+            if _client_cache is None:
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    raise RuntimeError("OPENAI_API_KEY is not set")
+                base_url = os.getenv("OPENAI_BASE_URL")
+                if base_url:
+                    _client_cache = OpenAI(api_key=api_key, base_url=base_url)
+                else:
+                    _client_cache = OpenAI(api_key=api_key)
+    return _client_cache
 
 
 def get_model_name() -> str:
     return os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
+
+# ── Helpers ─────────────────────────────────────────────────────────
 
 def clip_text(text: str, limit: int = 4000) -> str:
     text = (text or "").strip()
@@ -183,137 +199,3 @@ def build_user_prompt(query: str, payload: dict[str, Any]) -> str:
 
 def has_any_results(payload: dict[str, Any]) -> bool:
     return len(flatten_payload(payload)) > 0
-
-
-def generate_answer(
-    query: str,
-    history: list[dict[str, str]] | None = None,
-) -> dict[str, Any]:
-    """Generate a grounded answer.
-
-    Args:
-        query: current user question.
-        history: optional list of previous turns
-                 [{"role": "user"|"assistant", "content": "..."}].
-                 Used to give the LLM conversational context.
-    """
-    lang = detect_language(query)
-
-    # ── Conversational routing: greetings, meta, followup ──
-    conv_type, conv_response = classify_conversational(query, lang)
-
-    if conv_type in ("greeting", "smalltalk"):
-        # Instant response, no LLM needed
-        return {
-            "query": query,
-            "mode": conv_type,
-            "lang": lang,
-            "answer": conv_response,
-            "retrieval": {},
-        }
-
-    if conv_type == "meta":
-        # Let LLM answer with special addendum, no retrieval
-        system_prompt = load_system_prompt()
-        system_prompt += META_SYSTEM_ADDENDUM
-
-        client = get_client()
-        model = get_model_name()
-
-        messages: list[dict[str, str]] = [
-            {"role": "system", "content": system_prompt},
-        ]
-        if history:
-            messages.extend(history)
-        messages.append({"role": "user", "content": query})
-
-        response = client.responses.create(
-            model=model,
-            input=messages,
-            temperature=0.3,
-        )
-
-        answer_text = (response.output_text or "").strip()
-        if not answer_text:
-            answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
-
-        return {
-            "query": query,
-            "mode": "meta",
-            "lang": lang,
-            "answer": answer_text,
-            "retrieval": {},
-        }
-
-    # ── Intent rewriter: uses history to produce a clear retrieval query ──
-    intent_result = rewrite_query(query, history)
-    rewritten = intent_result["rewritten_query"]
-    intent = intent_result["intent"]
-
-    # If rewriter says no retrieval needed (smalltalk/meta detected by LLM)
-    if not intent_result["needs_retrieval"]:
-        if intent == "smalltalk":
-            # LLM-detected smalltalk that classifier missed
-            system_prompt = load_system_prompt()
-            system_prompt += META_SYSTEM_ADDENDUM
-
-            client = get_client()
-            model = get_model_name()
-            messages = [{"role": "system", "content": system_prompt}]
-            if history:
-                messages.extend(history)
-            messages.append({"role": "user", "content": query})
-
-            response = client.responses.create(
-                model=model, input=messages, temperature=0.3,
-            )
-            answer_text = (response.output_text or "").strip()
-            if not answer_text:
-                answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
-
-            return {
-                "query": query,
-                "mode": "smalltalk",
-                "lang": lang,
-                "answer": answer_text,
-                "retrieval": {},
-            }
-
-    # ── Normal retrieval path (using rewritten query) ──
-    payload = run_retrieval(rewritten)
-
-    system_prompt = load_system_prompt()
-    # Build user prompt with REWRITTEN query for retrieval context,
-    # but include original query so LLM sees what user actually asked
-    user_prompt = build_user_prompt(query, payload)
-
-    client = get_client()
-    model = get_model_name()
-
-    # Build message list: system → history → current user prompt
-    messages = [
-        {"role": "system", "content": system_prompt},
-    ]
-    if history:
-        messages.extend(history)
-    messages.append({"role": "user", "content": user_prompt})
-
-    response = client.responses.create(
-        model=model,
-        input=messages,
-        temperature=0.1,
-    )
-
-    answer_text = (response.output_text or "").strip()
-    if not answer_text:
-        answer_text = SAFE_FAILURE_TEXT.get(lang, SAFE_FAILURE_TEXT["ru"])
-
-    return {
-        "query": query,
-        "mode": payload.get("mode", "unknown"),
-        "lang": payload.get("lang", "ru"),
-        "answer": answer_text,
-        "retrieval": payload,
-        "rewritten_query": rewritten,
-        "intent": intent,
-    }
