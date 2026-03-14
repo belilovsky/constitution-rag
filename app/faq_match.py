@@ -9,11 +9,14 @@ Threshold: 0.82 (82% similarity).
 """
 
 import json
+import logging
 import os
 import re
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger("constitution_rag")
 
 _CACHE_PATH = Path(__file__).resolve().parent / "faq_cache.json"
 _THRESHOLD = 0.82
@@ -38,8 +41,18 @@ def _load_cache() -> list[dict[str, str]]:
         _cache = []
         return _cache
 
-    with open(_CACHE_PATH, "r", encoding="utf-8") as f:
-        _cache = json.load(f)
+    try:
+        with open(_CACHE_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, list):
+            logger.error("faq_cache.json is not a list, ignoring")
+            _cache = []
+        else:
+            _cache = data
+    except (json.JSONDecodeError, OSError) as e:
+        logger.error("Failed to load faq_cache.json: %s", e)
+        _cache = []
+
     return _cache
 
 

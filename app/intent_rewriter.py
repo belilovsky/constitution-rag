@@ -16,6 +16,7 @@ This adds ~0.5-1s latency but dramatically improves quality for:
 import json
 import logging
 import os
+import threading
 from typing import Any
 
 from openai import OpenAI
@@ -62,6 +63,27 @@ REWRITER_SYSTEM_PROMPT = """Ты — модуль переформулировк
 6. Отвечай ТОЛЬКО JSON, без пояснений, без markdown."""
 
 
+# ── Cached OpenAI client (singleton, thread-safe) ─────────────────
+_client_cache: OpenAI | None = None
+_client_lock = threading.Lock()
+
+
+def _get_client() -> OpenAI:
+    global _client_cache
+    if _client_cache is None:
+        with _client_lock:
+            if _client_cache is None:
+                api_key = os.getenv("OPENAI_API_KEY")
+                if not api_key:
+                    raise RuntimeError("OPENAI_API_KEY is not set")
+                base_url = os.getenv("OPENAI_BASE_URL")
+                if base_url:
+                    _client_cache = OpenAI(api_key=api_key, base_url=base_url)
+                else:
+                    _client_cache = OpenAI(api_key=api_key)
+    return _client_cache
+
+
 def rewrite_query(
     query: str,
     history: list[dict[str, str]] | None = None,
@@ -75,11 +97,7 @@ def rewrite_query(
         needs_retrieval: bool
         note: str
     """
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set")
-    base_url = os.getenv("OPENAI_BASE_URL")
-    client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
+    client = _get_client()
     model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
     # Build messages: system + last few history turns + current query

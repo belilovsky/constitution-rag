@@ -1,8 +1,9 @@
 import os
+import threading
 
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from psycopg2.pool import SimpleConnectionPool
+from psycopg2.pool import ThreadedConnectionPool
 
 
 def _require_env(name: str) -> str:
@@ -15,21 +16,24 @@ def _require_env(name: str) -> str:
 def get_db_config():
     return {
         "host": os.getenv("DB_HOST", "127.0.0.1"),
-        "port": int(os.getenv("DB_PORT", "55432")),
+        "port": int(os.getenv("DB_PORT", "5432")),
         "dbname": os.getenv("DB_NAME", "constitution_rag"),
         "user": os.getenv("DB_USER", "constitution_rag"),
         "password": _require_env("DB_PASSWORD"),
     }
 
 
-# ── Connection pool (min 1, max 5 connections) ─────────────────────
-_pool: SimpleConnectionPool | None = None
+# ── Thread-safe connection pool (min 1, max 5 connections) ────────
+_pool: ThreadedConnectionPool | None = None
+_pool_lock = threading.Lock()
 
 
-def _get_pool() -> SimpleConnectionPool:
+def _get_pool() -> ThreadedConnectionPool:
     global _pool
     if _pool is None or _pool.closed:
-        _pool = SimpleConnectionPool(1, 5, **get_db_config())
+        with _pool_lock:
+            if _pool is None or _pool.closed:
+                _pool = ThreadedConnectionPool(1, 5, **get_db_config())
     return _pool
 
 
@@ -53,5 +57,8 @@ def fetch_all(sql, params=None):
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(sql, params or ())
             return cur.fetchall()
+    except Exception:
+        conn.rollback()
+        raise
     finally:
         pool.putconn(conn)
