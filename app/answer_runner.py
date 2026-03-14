@@ -26,22 +26,28 @@ SAFE_FAILURE_TEXT = {
 
 USER_PROMPT_TEMPLATE = {
     "ru": (
-        "Ниже дан вопрос пользователя и найденные материалы по проекту constitution-rag.\n"
-        "Отвечай на основе найденных материалов. "
-        "Синтезируй информацию из разных фрагментов, объясняй простым языком. "
-        "Не придумывай сведения, которых нет в материалах.\n\n"
+        "Ниже — вопрос и релевантные фрагменты из Конституции и сопутствующих документов.\n"
+        "Дай полный, понятный и полезный ответ. "
+        "Объединяй информацию из разных фрагментов в единый связный текст. "
+        "Объясняй простым языком, избегай канцелярита. "
+        "Не упоминай, что ты ищешь по материалам — отвечай как знающий эксперт. "
+        "Не придумывай того, чего нет в контексте.\n\n"
     ),
     "kz": (
-        "Төменде пайдаланушы сұрағы және constitution-rag жобасының материалдары берілген.\n"
-        "Табылған материалдар негізінде жауап бер. "
-        "Әр түрлі үзінділерден ақпаратты біріктір, қарапайым тілмен түсіндір. "
-        "Материалдарда жоқ мәліметтерді ойдан шығарма.\n\n"
+        "Төменде — сұрақ және Конституция мен қосымша құжаттардан алынған үзінділер.\n"
+        "Толық, түсінікті және пайдалы жауап бер. "
+        "Әр түрлі үзінділерден ақпаратты біріктіріп, байланыстыра жаз. "
+        "Қарапайым тілмен түсіндір. "
+        "Материалдардан іздейтініңді айтпа — білімді маман ретінде жауап бер. "
+        "Контексте жоқ мәліметтерді ойдан шығарма.\n\n"
     ),
     "en": (
-        "Below is the user's question and retrieved materials from the constitution-rag project.\n"
-        "Answer based on the retrieved materials. "
-        "Synthesize information from different fragments, explain in plain language. "
-        "Do not make up information that is not in the materials.\n\n"
+        "Below is the question and relevant excerpts from the Constitution and related documents.\n"
+        "Give a complete, clear, and helpful answer. "
+        "Synthesize information from different excerpts into a coherent response. "
+        "Explain in plain language. "
+        "Do not mention that you are searching materials — respond as a knowledgeable expert. "
+        "Do not make up information not present in the context.\n\n"
     ),
 }
 

@@ -341,26 +341,69 @@
     }
 
     .msg.bot .answer-text {
-      white-space: pre-wrap;
-    }
-
-    .msg.bot .answer-text ul,
-    .msg.bot .answer-text ol {
-      padding-left: 1.4em;
-      margin: 6px 0;
-    }
-
-    .msg.bot .answer-text li {
-      margin-bottom: 4px;
+      white-space: normal;
     }
 
     .msg.bot .answer-text p {
-      margin-bottom: 8px;
+      margin: 0 0 10px 0;
+      line-height: 1.7;
     }
 
     .msg.bot .answer-text p:last-child {
       margin-bottom: 0;
     }
+
+    .msg.bot .answer-text strong {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .msg.bot .answer-text ul,
+    .msg.bot .answer-text ol {
+      padding-left: 1.5em;
+      margin: 8px 0;
+    }
+
+    .msg.bot .answer-text li {
+      margin-bottom: 5px;
+      line-height: 1.6;
+    }
+
+    .msg.bot .answer-text li p {
+      margin: 0;
+    }
+
+    .msg.bot .answer-text br + br {
+      display: none;
+    }
+
+    /* ── THINKING INDICATOR ──────────────────────────── */
+    .thinking-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-hint);
+      font-style: italic;
+      padding: 2px 0;
+    }
+
+    .thinking-label .dot-pulse {
+      display: inline-flex;
+      gap: 3px;
+    }
+
+    .thinking-label .dot-pulse span {
+      width: 5px;
+      height: 5px;
+      background: var(--primary);
+      opacity: 0.4;
+      border-radius: 50%;
+      animation: typing 1.4s infinite both;
+    }
+
+    .thinking-label .dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
+    .thinking-label .dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
 
     /* ── TYPING INDICATOR ───────────────────────────── */
     .typing-indicator {
@@ -616,6 +659,89 @@
 </main>
 
 <script>
+// ── Lightweight markdown→HTML renderer ──────────────
+function renderMarkdown(text) {
+  // Escape HTML
+  let s = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Bold: **text** or __text__
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+
+  // Italic: *text* or _text_ (but not inside words with underscores)
+  s = s.replace(/(?<![\w*])\*([^*\n]+?)\*(?![\w*])/g, '<em>$1</em>');
+
+  // Split into lines for block-level processing
+  const lines = s.split('\n');
+  const out = [];
+  let inList = null; // 'ul' or 'ol'
+  let para = [];
+
+  function flushPara() {
+    if (para.length > 0) {
+      out.push('<p>' + para.join(' ') + '</p>');
+      para = [];
+    }
+  }
+
+  function flushList() {
+    if (inList) {
+      out.push('</' + inList + '>');
+      inList = null;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    // Empty line → flush
+    if (trimmed === '') {
+      flushPara();
+      flushList();
+      continue;
+    }
+
+    // Unordered list: - item, • item, * item (at start)
+    const ulMatch = trimmed.match(/^[-•*]\s+(.+)/);
+    if (ulMatch) {
+      flushPara();
+      if (inList !== 'ul') {
+        flushList();
+        out.push('<ul>');
+        inList = 'ul';
+      }
+      out.push('<li>' + ulMatch[1] + '</li>');
+      continue;
+    }
+
+    // Ordered list: 1. item, 1) item
+    const olMatch = trimmed.match(/^(\d+)[.)\]]\s+(.+)/);
+    if (olMatch) {
+      flushPara();
+      if (inList !== 'ol') {
+        flushList();
+        out.push('<ol>');
+        inList = 'ol';
+      }
+      out.push('<li>' + olMatch[2] + '</li>');
+      continue;
+    }
+
+    // Regular text line → accumulate into paragraph
+    flushList();
+    para.push(trimmed);
+  }
+
+  flushPara();
+  flushList();
+
+  return out.join('\n');
+}
+
 const LABELS = {
   ru: {
     placeholder: 'Задайте вопрос...',
@@ -811,15 +937,16 @@ function doSend() {
 
   chatHistory.push({ role: 'user', content: text });
 
-  // Bot message with typing
+  // Bot message with thinking label
   const { row, msgEl } = addBotMessage();
-  const typingEl = document.createElement('div');
-  typingEl.className = 'typing-indicator';
-  typingEl.innerHTML = '<span></span><span></span><span></span>';
-  msgEl.appendChild(typingEl);
+  const thinkingEl = document.createElement('div');
+  thinkingEl.className = 'thinking-label';
+  const thinkText = currentLang === 'kz' ? 'Іздеп жатырмын' : currentLang === 'en' ? 'Thinking' : 'Ищу ответ';
+  thinkingEl.innerHTML = thinkText + '&nbsp;<span class="dot-pulse"><span></span><span></span><span></span></span>';
+  msgEl.appendChild(thinkingEl);
 
   isStreaming = true;
-  streamAnswer(text, msgEl, typingEl);
+  streamAnswer(text, msgEl, thinkingEl);
 }
 
 function addMessage(text, role) {
@@ -895,14 +1022,14 @@ async function streamAnswer(text, botEl, typingEl) {
               typingEl.remove();
             }
             fullText += data.text;
-            // Use a text container for proper formatting
+            // Use a text container with markdown rendering
             let textEl = botEl.querySelector('.answer-text');
             if (!textEl) {
               textEl = document.createElement('div');
               textEl.className = 'answer-text';
               botEl.appendChild(textEl);
             }
-            textEl.textContent = fullText;
+            textEl.innerHTML = renderMarkdown(fullText);
             chat.scrollTop = chat.scrollHeight;
           } else if (eventType === 'done') {
             latencyMs = data.latency_ms || 0;
