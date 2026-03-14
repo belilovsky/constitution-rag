@@ -660,67 +660,98 @@
 
 <script>
 // ── Post-process: strip AI speech patterns ────────
+// KEY RULE: never eat \n characters — preserve paragraph structure
 function cleanAIPatterns(text) {
-  let s = text;
+  // Work line-by-line to preserve paragraph boundaries
+  let lines = text.split('\n');
+  let out = [];
 
-  // ── 1. Remove whole filler sentences that start with banned phrases ──
+  // Phrases that kill the ENTIRE sentence they start (line-start only)
+  // These are summary/conclusion fillers with zero informational value
   const sentenceKillers = [
-    'Таким образом', 'Подводя итог', 'В заключение', 'Кратко говоря',
-    'Резюмируя', 'Итого', 'Суммируя вышесказанное', 'В итоге',
-    'В целом можно сказать', 'Обобщая',
+    /^Таким образом[,\s].*/i,
+    /^Подводя итог[,\s].*/i,
+    /^В заключение[,\s].*/i,
+    /^Кратко говоря[,\s].*/i,
+    /^Резюмируя[,\s].*/i,
+    /^Суммируя[,\s].*/i,
+    /^Обобщая[,\s].*/i,
+    /^Итог:.*/i,
+    /^Если нужна .*((информаци|подробн|детал)).*/i,
+    /^Если хотите.*/i,
+    /^Если у вас есть.*вопрос.*/i,
+    /^Если вас интересу.*/i,
+    /^Уточните,? пожалуйста.*/i,
+    /^По этому вопросу в Конституции нет.*/i,
   ];
-  for (const phrase of sentenceKillers) {
-    s = s.replace(new RegExp('(?:^|\\n)\\s*' + phrase + '[,\\s][^.!?\\n]*[.!?]', 'g'), '');
+
+  // Phrases stripped from the START of a line, keeping the rest
+  const prefixStrippers = [
+    /^Проще говоря,\s*/i,
+    /^Если говорить проще,\s*/i,
+    /^Если говорить простым языком,\s*/i,
+    /^Другими словами,\s*/i,
+    /^Иными словами,\s*/i,
+    /^Следует отметить,? что\s*/i,
+    /^Стоит отметить,? что\s*/i,
+    /^Важно отметить,? что\s*/i,
+    /^Следует подчеркнуть,? что\s*/i,
+    /^Стоит подчеркнуть,? что\s*/i,
+    /^Это означает,? что\s*/i,
+    /^Это значит,? что\s*/i,
+    /^Как было отмечено,\s*/i,
+    /^Как упоминалось выше,\s*/i,
+  ];
+
+  // Inline phrases stripped anywhere in text (short, unambiguous)
+  const inlineStrippers = [
+    /[Пп]о найденным материалам[,.]?\s*/g,
+    /[Вв] найденных материалах[,.]?\s*/g,
+    /[Вв] доступных материалах[,.]?\s*/g,
+    /[Сс]огласно (найденным |доступным )?материалам[,.]?\s*/g,
+    /[Нн]а основании (найденных |доступных )?материалов[,.]?\s*/g,
+    /,?\s*уточните,? пожалуйста\.?/gi,
+  ];
+
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    let trimmed = line.trim();
+
+    // Empty line — keep as paragraph separator
+    if (trimmed === '') { out.push(''); continue; }
+
+    // Check if entire line should be killed
+    let killed = false;
+    for (const rx of sentenceKillers) {
+      if (rx.test(trimmed)) { killed = true; break; }
+    }
+    if (killed) continue;
+
+    // Strip banned prefixes (keep remainder + capitalize)
+    for (const rx of prefixStrippers) {
+      if (rx.test(trimmed)) {
+        trimmed = trimmed.replace(rx, '');
+        // capitalize first char
+        if (trimmed) trimmed = trimmed[0].toUpperCase() + trimmed.slice(1);
+        break;
+      }
+    }
+
+    // Strip inline phrases
+    for (const rx of inlineStrippers) {
+      trimmed = trimmed.replace(rx, '');
+    }
+
+    // Collapse double spaces from removals
+    trimmed = trimmed.replace(/  +/g, ' ').trim();
+
+    if (trimmed) out.push(trimmed);
   }
 
-  // ── 2. Remove inline connectors (keep remainder of sentence) ──
-  const inlineKillers = [
-    'Проще говоря,', 'Если говорить проще,', 'Если говорить простым языком,',
-    'Другими словами,', 'Иными словами,',
-    'Следует отметить, что', 'Стоит отметить, что', 'Важно отметить, что',
-    'Необходимо отметить, что', 'Нужно отметить, что',
-    'Следует подчеркнуть, что', 'Стоит подчеркнуть, что', 'Важно подчеркнуть, что',
-    'Это означает, что', 'Это значит, что', 'Это свидетельствует о том, что',
-    'Во-первых,', 'Во-вторых,', 'В-третьих,', 'В-четвёртых,',
-    'Кроме того,', 'Помимо этого,', 'Более того,', 'Вместе с тем,',
-    'При этом следует отметить, что', 'При этом важно, что',
-    'Что касается вопроса о', 'Что касается',
-    'В данном контексте,', 'В этом контексте,',
-    'Как было отмечено,', 'Как упоминалось выше,',
-  ];
-  for (const phrase of inlineKillers) {
-    s = s.replace(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'g'), '');
-  }
-
-  // ── 3. Remove "по найденным материалам" and variants ──
-  s = s.replace(/[Пп]о найденным материалам[,.]?\s*/g, '');
-  s = s.replace(/[Вв] найденных материалах[,.]?\s*/g, '');
-  s = s.replace(/[Вв] доступных материалах[,.]?\s*/g, '');
-  s = s.replace(/[Сс]огласно (найденным |доступным )?материалам[,.]?\s*/g, '');
-  s = s.replace(/[Нн]а основании (найденных |доступных )?материалов[,.]?\s*/g, '');
-
-  // ── 4. Remove closing filler offers ──
-  s = s.replace(/\n\s*Если нужна[^.!?\n]*информаци[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/\n\s*Если хотите[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/\n\s*Если у вас есть[^.!?\n]*вопрос[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/\n\s*Если вас интересу[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/\n\s*Уточните,? пожалуйста[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/\n\s*По этому вопросу в Конституции нет[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/[,.]?\s*уточните,? пожалуйста\.?\s*$/gi, '.');
-
-  // ── 5. Remove residual AI-style hedging ──
-  s = s.replace(/[Вв] целом,?\s*/g, '');
-  s = s.replace(/[Нн]а сегодняшний день,?\s*/g, '');
-
-  // ── 6. Capitalize first letter after cleanup left a lowercase start ──
-  s = s.replace(/(?:^|\n\s*)(\n?)([а-яa-z])/g, (m, nl, ch) => (nl || '') + ch.toUpperCase());
-
-  // ── 7. Clean up whitespace ──
-  s = s.replace(/\n{3,}/g, '\n\n');
-  s = s.replace(/  +/g, ' ');
-  s = s.trim();
-
-  return s;
+  // Collapse 3+ consecutive blank lines into 2
+  let result = out.join('\n');
+  result = result.replace(/\n{3,}/g, '\n\n');
+  return result.trim();
 }
 
 // ── Lightweight markdown→HTML renderer ──────────────
