@@ -663,36 +663,61 @@
 function cleanAIPatterns(text) {
   let s = text;
 
-  // Remove sentences that START with banned connectors (whole sentence)
-  // These are filler sentences that add no information
-  s = s.replace(/(?:^|\n)\s*Таким образом[,\s][^.!?\n]*[.!?]/g, '');
-  s = s.replace(/(?:^|\n)\s*Подводя итог[,\s][^.!?\n]*[.!?]/g, '');
-  s = s.replace(/(?:^|\n)\s*В заключение[,\s][^.!?\n]*[.!?]/g, '');
-  s = s.replace(/(?:^|\n)\s*Кратко говоря[,\s][^.!?\n]*[.!?]/g, '');
+  // ── 1. Remove whole filler sentences that start with banned phrases ──
+  const sentenceKillers = [
+    'Таким образом', 'Подводя итог', 'В заключение', 'Кратко говоря',
+    'Резюмируя', 'Итого', 'Суммируя вышесказанное', 'В итоге',
+    'В целом можно сказать', 'Обобщая',
+  ];
+  for (const phrase of sentenceKillers) {
+    s = s.replace(new RegExp('(?:^|\\n)\\s*' + phrase + '[,\\s][^.!?\\n]*[.!?]', 'g'), '');
+  }
 
-  // Remove inline connectors at start of sentence (keep the rest)
-  s = s.replace(/Проще говоря,\s*/g, '');
-  s = s.replace(/Другими словами,\s*/g, '');
-  s = s.replace(/Следует отметить, что\s*/g, '');
-  s = s.replace(/Стоит отметить, что\s*/g, '');
-  s = s.replace(/Важно отметить, что\s*/g, '');
+  // ── 2. Remove inline connectors (keep remainder of sentence) ──
+  const inlineKillers = [
+    'Проще говоря,', 'Если говорить проще,', 'Если говорить простым языком,',
+    'Другими словами,', 'Иными словами,',
+    'Следует отметить, что', 'Стоит отметить, что', 'Важно отметить, что',
+    'Необходимо отметить, что', 'Нужно отметить, что',
+    'Следует подчеркнуть, что', 'Стоит подчеркнуть, что', 'Важно подчеркнуть, что',
+    'Это означает, что', 'Это значит, что', 'Это свидетельствует о том, что',
+    'Во-первых,', 'Во-вторых,', 'В-третьих,', 'В-четвёртых,',
+    'Кроме того,', 'Помимо этого,', 'Более того,', 'Вместе с тем,',
+    'При этом следует отметить, что', 'При этом важно, что',
+    'Что касается вопроса о', 'Что касается',
+    'В данном контексте,', 'В этом контексте,',
+    'Как было отмечено,', 'Как упоминалось выше,',
+  ];
+  for (const phrase of inlineKillers) {
+    s = s.replace(new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'g'), '');
+  }
 
-  // Remove "Это означает, что" at start of sentence (keep what follows)
-  s = s.replace(/Это означает, что\s*/g, '');
-  s = s.replace(/Это значит, что\s*/g, '');
+  // ── 3. Remove "по найденным материалам" and variants ──
+  s = s.replace(/[Пп]о найденным материалам[,.]?\s*/g, '');
+  s = s.replace(/[Вв] найденных материалах[,.]?\s*/g, '');
+  s = s.replace(/[Вв] доступных материалах[,.]?\s*/g, '');
+  s = s.replace(/[Сс]огласно (найденным |доступным )?материалам[,.]?\s*/g, '');
+  s = s.replace(/[Нн]а основании (найденных |доступных )?материалов[,.]?\s*/g, '');
 
-  // Remove "по найденным материалам" and variants
-  s = s.replace(/[Pp]о найденным материалам\s*/gi, '');
-  s = s.replace(/в найденных материалах\s*/gi, '');
-  s = s.replace(/в доступных материалах\s*/gi, '');
+  // ── 4. Remove closing filler offers ──
+  s = s.replace(/\n\s*Если нужна[^.!?\n]*информаци[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/\n\s*Если хотите[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/\n\s*Если у вас есть[^.!?\n]*вопрос[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/\n\s*Если вас интересу[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/\n\s*Уточните,? пожалуйста[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/\n\s*По этому вопросу в Конституции нет[^.!?\n]*[.!?]?/g, '');
+  s = s.replace(/[,.]?\s*уточните,? пожалуйста\.?\s*$/gi, '.');
 
-  // Remove "Если нужна более подробная информация..." endings
-  s = s.replace(/\n\s*Если нужна более подробная информация[^.!?\n]*[.!?]?/g, '');
-  s = s.replace(/\n\s*Если хотите,? могу помочь[^.!?\n]*[.!?]?/g, '');
+  // ── 5. Remove residual AI-style hedging ──
+  s = s.replace(/[Вв] целом,?\s*/g, '');
+  s = s.replace(/[Нн]а сегодняшний день,?\s*/g, '');
 
-  // Clean up: multiple newlines → max 2
+  // ── 6. Capitalize first letter after cleanup left a lowercase start ──
+  s = s.replace(/(?:^|\n\s*)(\n?)([а-яa-z])/g, (m, nl, ch) => (nl || '') + ch.toUpperCase());
+
+  // ── 7. Clean up whitespace ──
   s = s.replace(/\n{3,}/g, '\n\n');
-  // Trim
+  s = s.replace(/  +/g, ' ');
   s = s.trim();
 
   return s;
