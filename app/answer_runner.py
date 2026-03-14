@@ -11,16 +11,16 @@ SYSTEM_PROMPT_PATH = BASE_DIR / "docs" / "system_prompt_canonical_v1.md"
 
 SAFE_FAILURE_TEXT = {
     "ru": (
-        "По этой теме в доступных материалах ничего не нашлось. "
-        "Если уточнишь статью или тему — попробую снова."
+        "К сожалению, по этому вопросу в Конституции нет подробностей. "
+        "Попробуйте уточнить статью или тему — я помогу разобраться."
     ),
     "kz": (
-        "Бұл тақырып бойынша қол жетімді материалдардан ештеңе табылмады. "
-        "Мақаланы немесе тақырыпты нақтыласаң — қайта іздеймін."
+        "Кешіріңіз, бұл сұрақ бойынша Конституцияда толық мәлімет жоқ. "
+        "Мақаланы немесе тақырыпты нақтылаңыз — көмектесемін."
     ),
     "en": (
-        "Nothing came up on this topic in the available materials. "
-        "If you specify an article or topic, I can try again."
+        "Unfortunately, the Constitution does not cover this topic in detail. "
+        "Try specifying an article or topic — I'll help you find the answer."
     ),
 }
 
@@ -30,7 +30,11 @@ USER_PROMPT_TEMPLATE = {
         "Дай полный, понятный и полезный ответ. "
         "Объединяй информацию из разных фрагментов в единый связный текст. "
         "Объясняй простым языком, избегай канцелярита. "
-        "Не упоминай, что ты ищешь по материалам — отвечай как знающий эксперт. "
+        "СТРОГО ЗАПРЕЩЕНО использовать фразы: 'по найденным материалам', 'в найденных материалах', "
+        "'в доступных материалах', 'в материалах нет', 'в предоставленных материалах'. "
+        "Не упоминай процесс поиска, извлечения или наличие/отсутствие материалов. "
+        "Отвечай как эксперт по конституционному праву, который знает тему. "
+        "Если информации недостаточно — скажи 'по этому вопросу в Конституции нет подробностей'. "
         "Не придумывай того, чего нет в контексте.\n\n"
     ),
     "kz": (
@@ -38,7 +42,8 @@ USER_PROMPT_TEMPLATE = {
         "Толық, түсінікті және пайдалы жауап бер. "
         "Әр түрлі үзінділерден ақпаратты біріктіріп, байланыстыра жаз. "
         "Қарапайым тілмен түсіндір. "
-        "Материалдардан іздейтініңді айтпа — білімді маман ретінде жауап бер. "
+        "'Табылған материалдар бойынша', 'материалдарда жоқ' деген сөздерді ҚОЛДАНБА. "
+        "Конституциялық құқық маманы ретінде жауап бер. "
         "Контексте жоқ мәліметтерді ойдан шығарма.\n\n"
     ),
     "en": (
@@ -46,7 +51,9 @@ USER_PROMPT_TEMPLATE = {
         "Give a complete, clear, and helpful answer. "
         "Synthesize information from different excerpts into a coherent response. "
         "Explain in plain language. "
-        "Do not mention that you are searching materials — respond as a knowledgeable expert. "
+        "NEVER use phrases like 'based on the retrieved materials', 'in the available materials', "
+        "'in the found materials'. Do not mention the search process or materials at all. "
+        "Respond as a constitutional law expert who knows the subject. "
         "Do not make up information not present in the context.\n\n"
     ),
 }
