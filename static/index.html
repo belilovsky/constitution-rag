@@ -4,75 +4,113 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Конституция РК — справочный бот</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #f7f8fa;
+      --bg: #f0f2f5;
       --card: #ffffff;
-      --primary: #0057b7;
-      --primary-light: #e8f0fe;
+      --primary: #0066cc;
+      --primary-hover: #0052a3;
+      --primary-light: #e6f0ff;
+      --primary-subtle: #cce0ff;
       --text: #1a1a2e;
-      --text-secondary: #5f6368;
-      --border: #dadce0;
-      --radius: 12px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --text-secondary: #6b7280;
+      --text-hint: #9ca3af;
+      --border: #e5e7eb;
+      --border-light: #f3f4f6;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 30px rgba(0,0,0,0.12);
+      --transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      --kz-blue: #0066cc;
+      --kz-gold: #fbbf24;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
-      min-height: 100vh;
+      min-height: 100dvh;
       display: flex;
       flex-direction: column;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
+    /* ── HEADER ─────────────────────────────────────── */
     header {
       background: var(--card);
       border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
+      padding: 12px 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+      background: rgba(255,255,255,0.92);
     }
 
     .logo {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
 
     .logo-icon {
-      width: 36px;
-      height: 36px;
-      background: var(--primary);
-      border-radius: 8px;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      color: white;
-      font-size: 18px;
-      font-weight: 700;
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(135deg, var(--kz-blue) 0%, #004d99 100%);
+    }
+
+    .logo-icon svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    .logo-text-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
     }
 
     .logo-text {
-      font-size: 16px;
-      font-weight: 600;
+      font-size: 15px;
+      font-weight: 700;
       color: var(--text);
+      letter-spacing: -0.02em;
     }
 
     .logo-sub {
       font-size: 12px;
       color: var(--text-secondary);
+      font-weight: 400;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .lang-select {
       display: flex;
-      gap: 4px;
+      gap: 2px;
       background: var(--bg);
-      border-radius: 8px;
+      border-radius: 10px;
       padding: 3px;
     }
 
@@ -80,182 +118,428 @@
       border: none;
       background: transparent;
       padding: 6px 12px;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
       color: var(--text-secondary);
-      transition: all 0.2s;
+      transition: all var(--transition);
+      font-family: inherit;
+    }
+
+    .lang-btn:hover {
+      color: var(--text);
     }
 
     .lang-btn.active {
       background: var(--card);
       color: var(--primary);
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
 
+    .clear-btn {
+      border: none;
+      background: transparent;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-hint);
+      transition: all var(--transition);
+      display: none;
+    }
+
+    .clear-btn:hover {
+      background: var(--bg);
+      color: var(--text-secondary);
+    }
+
+    .clear-btn.visible {
+      display: flex;
+    }
+
+    .clear-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* ── MAIN AREA ──────────────────────────────────── */
     main {
       flex: 1;
-      max-width: 800px;
+      max-width: 760px;
       width: 100%;
       margin: 0 auto;
-      padding: 24px 16px;
+      padding: 0 16px;
       display: flex;
       flex-direction: column;
+      height: calc(100dvh - 65px);
     }
 
+    /* ── CHAT ───────────────────────────────────────── */
     #chat {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      padding-bottom: 16px;
+      gap: 8px;
+      padding: 20px 0 16px;
+      scroll-behavior: smooth;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
     }
 
+    #chat::-webkit-scrollbar { width: 6px; }
+    #chat::-webkit-scrollbar-track { background: transparent; }
+    #chat::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 3px;
+    }
+
+    /* ── WELCOME SCREEN ─────────────────────────────── */
     .welcome {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px;
       text-align: center;
-      padding: 60px 20px;
-      color: var(--text-secondary);
+      animation: fadeUp 0.5s ease;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .welcome-icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, var(--kz-blue) 0%, #004d99 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 24px rgba(0, 102, 204, 0.25);
+    }
+
+    .welcome-icon svg {
+      width: 36px;
+      height: 36px;
     }
 
     .welcome h2 {
       font-size: 22px;
+      font-weight: 700;
       color: var(--text);
       margin-bottom: 8px;
+      letter-spacing: -0.02em;
     }
 
     .welcome p {
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      max-width: 420px;
+    }
+
+    /* ── SUGGESTION CHIPS ───────────────────────────── */
+    .suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 24px;
+      max-width: 520px;
+    }
+
+    .suggestion {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 9px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      cursor: pointer;
+      transition: all var(--transition);
+      font-family: inherit;
+      line-height: 1.4;
+    }
+
+    .suggestion:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-light);
+      box-shadow: var(--shadow);
+      transform: translateY(-1px);
+    }
+
+    .suggestion:active {
+      transform: translateY(0);
+    }
+
+    /* ── MESSAGES ────────────────────────────────────── */
+    .msg-row {
+      display: flex;
+      gap: 10px;
+      animation: msgIn 0.3s ease;
+      max-width: 100%;
+    }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-row.user {
+      justify-content: flex-end;
+    }
+
+    .msg-row.bot {
+      justify-content: flex-start;
+    }
+
+    .bot-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--kz-blue), #004d99);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    .bot-avatar svg {
+      width: 16px;
+      height: 16px;
     }
 
     .msg {
-      max-width: 90%;
+      max-width: 85%;
       padding: 12px 16px;
       border-radius: var(--radius);
-      line-height: 1.6;
-      font-size: 15px;
-      white-space: pre-wrap;
+      line-height: 1.65;
+      font-size: 14.5px;
       word-break: break-word;
     }
 
     .msg.user {
-      align-self: flex-end;
       background: var(--primary);
       color: white;
-      border-bottom-right-radius: 4px;
+      border-bottom-right-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0, 102, 204, 0.2);
     }
 
     .msg.bot {
-      align-self: flex-start;
       background: var(--card);
-      border: 1px solid var(--border);
-      border-bottom-left-radius: 4px;
+      border: 1px solid var(--border-light);
+      border-bottom-left-radius: 6px;
       box-shadow: var(--shadow);
+    }
+
+    .msg.bot .answer-text {
+      white-space: pre-wrap;
     }
 
     .msg.bot .meta {
       display: flex;
-      gap: 8px;
-      margin-top: 8px;
+      gap: 6px;
+      margin-top: 10px;
       font-size: 11px;
-      color: var(--text-secondary);
+      color: var(--text-hint);
+      flex-wrap: wrap;
     }
 
     .msg.bot .meta span {
       background: var(--bg);
-      padding: 2px 6px;
-      border-radius: 4px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 500;
     }
 
+    /* ── TYPING INDICATOR ───────────────────────────── */
     .typing-indicator {
       display: inline-flex;
-      gap: 4px;
+      gap: 5px;
       padding: 4px 0;
     }
 
     .typing-indicator span {
-      width: 6px;
-      height: 6px;
-      background: var(--text-secondary);
+      width: 7px;
+      height: 7px;
+      background: var(--primary);
+      opacity: 0.4;
       border-radius: 50%;
-      animation: blink 1.4s infinite both;
+      animation: typing 1.4s infinite both;
     }
 
     .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
     .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 
-    @keyframes blink {
-      0%, 80%, 100% { opacity: 0.3; }
-      40% { opacity: 1; }
+    @keyframes typing {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+      40% { opacity: 1; transform: scale(1); }
     }
 
+    /* ── INPUT AREA ─────────────────────────────────── */
     .input-area {
+      padding: 12px 0 16px;
+      position: relative;
+    }
+
+    .input-wrap {
       display: flex;
+      align-items: flex-end;
       gap: 8px;
-      padding-top: 12px;
-      border-top: 1px solid var(--border);
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 6px 6px 6px 16px;
+      transition: all var(--transition);
+      box-shadow: var(--shadow);
+    }
+
+    .input-wrap:focus-within {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1), var(--shadow-md);
     }
 
     #query {
       flex: 1;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 16px;
+      border: none;
+      padding: 8px 0;
       font-size: 15px;
       font-family: inherit;
       resize: none;
       outline: none;
-      transition: border-color 0.2s;
-      min-height: 48px;
+      min-height: 24px;
       max-height: 120px;
+      line-height: 1.5;
+      background: transparent;
+      color: var(--text);
     }
 
-    #query:focus {
-      border-color: var(--primary);
+    #query::placeholder {
+      color: var(--text-hint);
     }
 
     #send {
       background: var(--primary);
       color: white;
       border: none;
-      border-radius: var(--radius);
-      padding: 0 20px;
-      font-size: 15px;
-      font-weight: 500;
+      border-radius: 12px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
-      transition: opacity 0.2s;
-      white-space: nowrap;
+      transition: all var(--transition);
+      flex-shrink: 0;
     }
 
-    #send:hover { opacity: 0.9; }
-    #send:disabled { opacity: 0.5; cursor: not-allowed; }
+    #send:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: scale(1.05);
+    }
 
+    #send:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    #send:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    #send svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .input-hint {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-hint);
+      padding-top: 8px;
+    }
+
+    /* ── ERROR TOAST ─────────────────────────────────── */
     .error-toast {
       position: fixed;
       bottom: 100px;
       left: 50%;
       transform: translateX(-50%);
-      background: #d93025;
+      background: #ef4444;
       color: white;
-      padding: 10px 20px;
-      border-radius: 8px;
+      padding: 12px 24px;
+      border-radius: 12px;
       font-size: 14px;
+      font-weight: 500;
       z-index: 100;
-      animation: fadeIn 0.3s;
+      animation: toastIn 0.3s ease;
+      box-shadow: 0 8px 24px rgba(239, 68, 68, 0.3);
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(-50%) translateY(12px); }
       to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
 
+    /* ── RESPONSIVE ──────────────────────────────────── */
     @media (max-width: 600px) {
-      header { padding: 12px 16px; }
+      header { padding: 10px 14px; }
       .logo-text { font-size: 14px; }
       .logo-sub { display: none; }
-      main { padding: 16px 12px; }
+      main { padding: 0 10px; }
+      .welcome { padding: 30px 12px; }
+      .welcome h2 { font-size: 19px; }
+      .welcome-icon { width: 60px; height: 60px; border-radius: 16px; }
+      .welcome-icon svg { width: 28px; height: 28px; }
+      .suggestions { gap: 6px; }
+      .suggestion { font-size: 12px; padding: 8px 12px; }
+      .msg { font-size: 14px; max-width: 90%; }
+      .bot-avatar { width: 28px; height: 28px; border-radius: 8px; }
+      .bot-avatar svg { width: 14px; height: 14px; }
+    }
+
+    /* ── SCROLL-TO-BOTTOM BUTTON ──────────────────────── */
+    .scroll-bottom {
+      position: absolute;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      box-shadow: var(--shadow-md);
+      display: none;
+      align-items: center;
+      gap: 4px;
+      z-index: 10;
+      transition: all var(--transition);
+    }
+
+    .scroll-bottom:hover {
+      box-shadow: var(--shadow-lg);
+      color: var(--text);
+    }
+
+    .scroll-bottom svg {
+      width: 14px;
+      height: 14px;
+    }
+
+    .scroll-bottom.visible {
+      display: flex;
     }
   </style>
 </head>
@@ -263,74 +547,185 @@
 
 <header>
   <div class="logo">
-    <div class="logo-icon">К</div>
-    <div>
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" fill="rgba(255,255,255,0.15)" stroke="white" stroke-width="1.5"/>
+        <path d="M9 12.5L11 14.5L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="logo-text-wrap">
       <div class="logo-text">Конституция РК</div>
-      <div class="logo-sub">Справочный бот по проекту 2026</div>
+      <div class="logo-sub">Справочный бот</div>
     </div>
   </div>
-  <div class="lang-select">
-    <button class="lang-btn active" data-lang="ru">RU</button>
-    <button class="lang-btn" data-lang="kz">ҚЗ</button>
-    <button class="lang-btn" data-lang="en">EN</button>
+  <div class="header-right">
+    <button class="clear-btn" id="clearBtn" title="Новый диалог">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+      </svg>
+    </button>
+    <div class="lang-select">
+      <button class="lang-btn active" data-lang="ru">RU</button>
+      <button class="lang-btn" data-lang="kz">ҚЗ</button>
+      <button class="lang-btn" data-lang="en">EN</button>
+    </div>
   </div>
 </header>
 
 <main>
   <div id="chat">
     <div class="welcome" id="welcome">
-      <h2>Задайте вопрос о проекте Конституции</h2>
-      <p>Бот ответит на основе текста проекта, комментариев и FAQ.<br>
-      Ответы основаны только на найденных материалах.</p>
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" fill="rgba(255,255,255,0.15)" stroke="white" stroke-width="1.5"/>
+          <path d="M9 12.5L11 14.5L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 id="welcomeTitle">Задайте вопрос о Конституции</h2>
+      <p id="welcomeDesc">Я помогу разобраться в проекте новой Конституции Республики Казахстан 2026 года. Спрашивайте — отвечу на основе официальных материалов.</p>
+      <div class="suggestions" id="suggestions">
+        <button class="suggestion">Что нового в проекте 2026?</button>
+        <button class="suggestion">Какова роль Курултая?</button>
+        <button class="suggestion">Права и свободы граждан</button>
+        <button class="suggestion">Чем отличается от Конституции 1995?</button>
+      </div>
     </div>
   </div>
 
+  <button class="scroll-bottom" id="scrollBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+    <span id="scrollBtnText">Вниз</span>
+  </button>
+
   <div class="input-area">
-    <textarea id="query" rows="1" placeholder="Ваш вопрос..." autofocus></textarea>
-    <button id="send">Отправить</button>
+    <div class="input-wrap">
+      <textarea id="query" rows="1" placeholder="Задайте вопрос..." autofocus></textarea>
+      <button id="send" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+    <div class="input-hint" id="inputHint">Enter — отправить &nbsp;·&nbsp; Shift+Enter — новая строка</div>
   </div>
 </main>
 
 <script>
 const LABELS = {
-  ru: { placeholder: 'Ваш вопрос...', send: 'Отправить', welcome_h: 'Задайте вопрос о проекте Конституции', welcome_p: 'Бот ответит на основе текста проекта, комментариев и FAQ.<br>Ответы основаны только на найденных материалах.' },
-  kz: { placeholder: 'Сұрағыңызды жазыңыз...', send: 'Жіберу', welcome_h: 'Конституция жобасы туралы сұрақ қойыңыз', welcome_p: 'Бот жоба мәтіні, түсініктемелер және FAQ негізінде жауап береді.<br>Жауаптар тек табылған материалдарға негізделген.' },
-  en: { placeholder: 'Your question...', send: 'Send', welcome_h: 'Ask a question about the Constitution', welcome_p: 'The bot answers based on the project text, commentaries, and FAQ.<br>Answers are grounded in retrieved materials only.' },
+  ru: {
+    placeholder: 'Задайте вопрос...',
+    send: 'Отправить',
+    welcome_h: 'Задайте вопрос о Конституции',
+    welcome_p: 'Я помогу разобраться в проекте новой Конституции Республики Казахстан 2026 года. Спрашивайте — отвечу на основе официальных материалов.',
+    hint: 'Enter — отправить · Shift+Enter — новая строка',
+    scroll: 'Вниз',
+    newChat: 'Новый диалог',
+    suggestions: [
+      'Что нового в проекте 2026?',
+      'Какова роль Курултая?',
+      'Права и свободы граждан',
+      'Чем отличается от Конституции 1995?'
+    ]
+  },
+  kz: {
+    placeholder: 'Сұрағыңызды жазыңыз...',
+    send: 'Жіберу',
+    welcome_h: 'Конституция туралы сұрақ қойыңыз',
+    welcome_p: 'Қазақстан Республикасының 2026 жылғы жаңа Конституция жобасын түсінуге көмектесемін. Сұраңыз — ресми материалдар негізінде жауап беремін.',
+    hint: 'Enter — жіберу · Shift+Enter — жаңа жол',
+    scroll: 'Төмен',
+    newChat: 'Жаңа диалог',
+    suggestions: [
+      '2026 жобасында не жаңалық?',
+      'Құрылтайдың рөлі қандай?',
+      'Азаматтардың құқықтары мен бостандықтары',
+      '1995 Конституциясынан айырмашылығы?'
+    ]
+  },
+  en: {
+    placeholder: 'Ask a question...',
+    send: 'Send',
+    welcome_h: 'Ask about the Constitution',
+    welcome_p: 'I can help you understand the draft of the new Constitution of the Republic of Kazakhstan 2026. Ask me anything — I answer based on official materials.',
+    hint: 'Enter — send · Shift+Enter — new line',
+    scroll: 'Down',
+    newChat: 'New chat',
+    suggestions: [
+      "What's new in the 2026 draft?",
+      'What is the role of Kurultai?',
+      'Rights and freedoms of citizens',
+      'How is it different from 1995?'
+    ]
+  }
 };
 
 let currentLang = 'ru';
 let isStreaming = false;
-let chatHistory = [];  // [{role: 'user'|'assistant', content: '...'}]
+let chatHistory = [];
+let hasMessages = false;
 
 const chat = document.getElementById('chat');
-const query = document.getElementById('query');
+const queryEl = document.getElementById('query');
 const sendBtn = document.getElementById('send');
-const welcome = document.getElementById('welcome');
+const welcomeEl = document.getElementById('welcome');
+const clearBtn = document.getElementById('clearBtn');
+const scrollBtn = document.getElementById('scrollBtn');
+const inputHint = document.getElementById('inputHint');
 
-// Language selector
+// ── Language selector ──────────────────────────────
 document.querySelectorAll('.lang-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelector('.lang-btn.active').classList.remove('active');
     btn.classList.add('active');
     currentLang = btn.dataset.lang;
-    const l = LABELS[currentLang];
-    query.placeholder = l.placeholder;
-    sendBtn.textContent = l.send;
-    if (welcome) {
-      welcome.querySelector('h2').textContent = l.welcome_h;
-      welcome.querySelector('p').innerHTML = l.welcome_p;
-    }
+    updateLabels();
   });
 });
 
-// Auto-resize textarea
-query.addEventListener('input', () => {
-  query.style.height = 'auto';
-  query.style.height = Math.min(query.scrollHeight, 120) + 'px';
+function updateLabels() {
+  const l = LABELS[currentLang];
+  queryEl.placeholder = l.placeholder;
+  inputHint.textContent = l.hint;
+  scrollBtn.querySelector('span').textContent = l.scroll;
+  clearBtn.title = l.newChat;
+
+  if (welcomeEl && welcomeEl.parentNode) {
+    document.getElementById('welcomeTitle').textContent = l.welcome_h;
+    document.getElementById('welcomeDesc').textContent = l.welcome_p;
+    const sugContainer = document.getElementById('suggestions');
+    sugContainer.innerHTML = '';
+    l.suggestions.forEach(text => {
+      const btn = document.createElement('button');
+      btn.className = 'suggestion';
+      btn.textContent = text;
+      btn.addEventListener('click', () => sendQuestion(text));
+      sugContainer.appendChild(btn);
+    });
+  }
+}
+
+// ── Suggestions ────────────────────────────────────
+document.querySelectorAll('.suggestion').forEach(btn => {
+  btn.addEventListener('click', () => sendQuestion(btn.textContent));
 });
 
-// Send on Enter (Shift+Enter = newline)
-query.addEventListener('keydown', (e) => {
+function sendQuestion(text) {
+  queryEl.value = text;
+  doSend();
+}
+
+// ── Auto-resize textarea ───────────────────────────
+queryEl.addEventListener('input', () => {
+  queryEl.style.height = 'auto';
+  queryEl.style.height = Math.min(queryEl.scrollHeight, 120) + 'px';
+  sendBtn.disabled = !queryEl.value.trim();
+});
+
+// ── Send on Enter ──────────────────────────────────
+queryEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     doSend();
@@ -339,41 +734,123 @@ query.addEventListener('keydown', (e) => {
 
 sendBtn.addEventListener('click', doSend);
 
+// ── Enable/disable send button ─────────────────────
+queryEl.addEventListener('input', () => {
+  sendBtn.disabled = !queryEl.value.trim() || isStreaming;
+});
+
+// ── Clear / New chat ───────────────────────────────
+clearBtn.addEventListener('click', () => {
+  if (isStreaming) return;
+  chat.innerHTML = '';
+  chatHistory = [];
+  hasMessages = false;
+  clearBtn.classList.remove('visible');
+
+  // Recreate welcome
+  const l = LABELS[currentLang];
+  const welcomeHTML = `
+    <div class="welcome" id="welcome">
+      <div class="welcome-icon">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" fill="rgba(255,255,255,0.15)" stroke="white" stroke-width="1.5"/>
+          <path d="M9 12.5L11 14.5L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h2 id="welcomeTitle">${l.welcome_h}</h2>
+      <p id="welcomeDesc">${l.welcome_p}</p>
+      <div class="suggestions" id="suggestions"></div>
+    </div>`;
+  chat.innerHTML = welcomeHTML;
+
+  const sugContainer = document.getElementById('suggestions');
+  l.suggestions.forEach(text => {
+    const btn = document.createElement('button');
+    btn.className = 'suggestion';
+    btn.textContent = text;
+    btn.addEventListener('click', () => sendQuestion(text));
+    sugContainer.appendChild(btn);
+  });
+
+  queryEl.focus();
+});
+
+// ── Scroll-to-bottom button ────────────────────────
+chat.addEventListener('scroll', () => {
+  const diff = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+  if (diff > 200 && hasMessages) {
+    scrollBtn.classList.add('visible');
+  } else {
+    scrollBtn.classList.remove('visible');
+  }
+});
+
+scrollBtn.addEventListener('click', () => {
+  chat.scrollTo({ top: chat.scrollHeight, behavior: 'smooth' });
+});
+
+// ── doSend ─────────────────────────────────────────
 function doSend() {
-  const text = query.value.trim();
+  const text = queryEl.value.trim();
   if (!text || isStreaming) return;
 
   // Remove welcome
-  if (welcome) welcome.remove();
+  const w = document.getElementById('welcome');
+  if (w) w.remove();
+
+  hasMessages = true;
+  clearBtn.classList.add('visible');
 
   // User message
   addMessage(text, 'user');
-  query.value = '';
-  query.style.height = 'auto';
+  queryEl.value = '';
+  queryEl.style.height = 'auto';
+  sendBtn.disabled = true;
 
-  // Track user message in history
   chatHistory.push({ role: 'user', content: text });
 
-  // Bot placeholder
-  const botEl = addMessage('', 'bot');
+  // Bot message with typing
+  const { row, msgEl } = addBotMessage();
   const typingEl = document.createElement('div');
   typingEl.className = 'typing-indicator';
   typingEl.innerHTML = '<span></span><span></span><span></span>';
-  botEl.appendChild(typingEl);
+  msgEl.appendChild(typingEl);
 
   isStreaming = true;
-  sendBtn.disabled = true;
-
-  streamAnswer(text, botEl, typingEl);
+  streamAnswer(text, msgEl, typingEl);
 }
 
 function addMessage(text, role) {
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+
   const el = document.createElement('div');
   el.className = `msg ${role}`;
-  if (text) el.textContent = text;
-  chat.appendChild(el);
+  el.textContent = text;
+
+  row.appendChild(el);
+  chat.appendChild(row);
   chat.scrollTop = chat.scrollHeight;
   return el;
+}
+
+function addBotMessage() {
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'bot-avatar';
+  avatar.innerHTML = `<svg viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6l-8-4z" fill="rgba(255,255,255,0.2)" stroke="white" stroke-width="1.5"/><path d="M9 12.5L11 14.5L15 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+  const msgEl = document.createElement('div');
+  msgEl.className = 'msg bot';
+
+  row.appendChild(avatar);
+  row.appendChild(msgEl);
+  chat.appendChild(row);
+  chat.scrollTop = chat.scrollHeight;
+
+  return { row, msgEl };
 }
 
 async function streamAnswer(text, botEl, typingEl) {
@@ -400,7 +877,7 @@ async function streamAnswer(text, botEl, typingEl) {
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep incomplete line
+      buffer = lines.pop();
 
       let eventType = '';
       for (const line of lines) {
@@ -411,13 +888,19 @@ async function streamAnswer(text, botEl, typingEl) {
 
           if (eventType === 'meta') {
             meta = data;
-            // Remove typing indicator once we get meta
           } else if (eventType === 'text') {
             if (typingEl && typingEl.parentNode) {
               typingEl.remove();
             }
             fullText += data.text;
-            botEl.textContent = fullText;
+            // Use a text container for proper formatting
+            let textEl = botEl.querySelector('.answer-text');
+            if (!textEl) {
+              textEl = document.createElement('div');
+              textEl.className = 'answer-text';
+              botEl.appendChild(textEl);
+            }
+            textEl.textContent = fullText;
             chat.scrollTop = chat.scrollHeight;
           } else if (eventType === 'done') {
             latencyMs = data.latency_ms || 0;
@@ -434,14 +917,21 @@ async function streamAnswer(text, botEl, typingEl) {
       metaDiv.className = 'meta';
       if (meta.mode) metaDiv.innerHTML += `<span>${meta.mode}</span>`;
       if (meta.lang) metaDiv.innerHTML += `<span>${meta.lang}</span>`;
-      if (latencyMs) metaDiv.innerHTML += `<span>${(latencyMs/1000).toFixed(1)}s</span>`;
+      if (latencyMs) metaDiv.innerHTML += `<span>${(latencyMs/1000).toFixed(1)}с</span>`;
       botEl.appendChild(metaDiv);
     }
 
   } catch (err) {
     if (typingEl && typingEl.parentNode) typingEl.remove();
-    botEl.textContent = fullText || 'Ошибка соединения. Попробуйте снова.';
-    botEl.style.borderColor = '#d93025';
+    let textEl = botEl.querySelector('.answer-text');
+    if (!textEl) {
+      textEl = document.createElement('div');
+      textEl.className = 'answer-text';
+      botEl.appendChild(textEl);
+    }
+    const l = LABELS[currentLang];
+    textEl.textContent = fullText || (currentLang === 'ru' ? 'Ошибка соединения. Попробуйте снова.' : currentLang === 'kz' ? 'Байланыс қатесі. Қайталап көріңіз.' : 'Connection error. Please try again.');
+    botEl.style.borderColor = '#ef4444';
 
     const toast = document.createElement('div');
     toast.className = 'error-toast';
@@ -450,19 +940,17 @@ async function streamAnswer(text, botEl, typingEl) {
     setTimeout(() => toast.remove(), 4000);
   }
 
-  // Track bot response in history
   if (fullText) {
     chatHistory.push({ role: 'assistant', content: fullText });
   }
 
-  // Keep history manageable (last 20 messages)
   if (chatHistory.length > 20) {
     chatHistory = chatHistory.slice(-20);
   }
 
   isStreaming = false;
-  sendBtn.disabled = false;
-  query.focus();
+  sendBtn.disabled = !queryEl.value.trim();
+  queryEl.focus();
 }
 </script>
 
