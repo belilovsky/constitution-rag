@@ -713,6 +713,24 @@ function cleanAIPatterns(text) {
     /,?\s*уточните,? пожалуйста\.?/gi,
   ];
 
+  // Sentence-start connectors that appear after ". " within a line
+  // Pattern: ". Phrase" → ". " (keeps period, removes phrase, capitalizes next word)
+  const midLineKillers = [
+    'Это означает, что ',
+    'Это означает ',
+    'Это значит, что ',
+    'Это значит ',
+    'Кроме того, ',
+    'Помимо этого, ',
+    'Более того, ',
+    'Вместе с тем, ',
+    'Как было отмечено, ',
+    'Как упоминалось выше, ',
+    'Следует отметить, что ',
+    'Стоит отметить, что ',
+    'Важно отметить, что ',
+  ];
+
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i];
     let trimmed = line.trim();
@@ -740,6 +758,22 @@ function cleanAIPatterns(text) {
     // Strip inline phrases
     for (const rx of inlineStrippers) {
       trimmed = trimmed.replace(rx, '');
+    }
+
+    // Strip mid-line sentence-start connectors: ". Phrase word" → ". Word"
+    for (const phrase of midLineKillers) {
+      let idx;
+      while ((idx = trimmed.indexOf(phrase)) !== -1) {
+        // Only strip if it's at sentence start (after . or ! or ? or start of line)
+        const before = trimmed.slice(0, idx).trimEnd();
+        const after = trimmed.slice(idx + phrase.length);
+        if (idx === 0 || /[.!?]$/.test(before)) {
+          const cap = after.length > 0 ? after[0].toUpperCase() + after.slice(1) : '';
+          trimmed = (before ? before + ' ' : '') + cap;
+        } else {
+          break; // not at sentence boundary, leave it
+        }
+      }
     }
 
     // Collapse double spaces from removals
